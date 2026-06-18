@@ -41,7 +41,8 @@ polars>=1.15.0
 intervaltree>=3.1.0
 spacy>=2.2.0,<4.0.0
 
-# --- ICD trie (trie.icd, trie.base) ---
+# --- ICD trie (trie.icd, trie.base; trie.connectors.cms parses CMS ICD XML) ---
 rapidfuzz>=3.13.0
 fitz>=0.0.1.dev2
 pymupdf>=1.25.5
+beautifulsoup4>=4.12

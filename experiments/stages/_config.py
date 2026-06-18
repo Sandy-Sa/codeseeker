@@ -104,9 +104,14 @@ class PipelineConfig(pydantic.BaseModel):
         }
 
     def sampling_params(self) -> dict[str, typ.Any]:
+        # NOTE: the OpenAI-compatible ``/v1/completions`` endpoint (model.endpoint
+        # == "completions") honours ``max_tokens`` -- it silently ignores
+        # ``max_completion_tokens`` (a chat/completions-only field) and falls back
+        # to a small default, truncating the reasoning before the <answer> block.
+        # Use ``max_tokens`` so the agent's structured output is actually emitted.
         return {
             "temperature": self.sampling.temperature,
-            "max_completion_tokens": self.sampling.max_tokens,
+            "max_tokens": self.sampling.max_tokens,
             "seed": self.sampling.seed,
             "model": self.model.deployment,
             "reasoning_effort": self.sampling.reasoning_effort,

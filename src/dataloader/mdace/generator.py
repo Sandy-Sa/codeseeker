@@ -167,6 +167,11 @@ class MDACE_ICD10(datasets.GeneratorBasedBuilder):
         """Processes the raw dataset."""
         mdace = pl.read_parquet(_ANNOTATIONS_PATH)
 
+        # The processed parquet stores the admission id as `_id`; the rest of the
+        # generator (splits join, group_by, features) expects `hadm_id`.
+        if "_id" in mdace.columns and mimic_utils.ID_COLUMN not in mdace.columns:
+            mdace = mdace.rename({"_id": mimic_utils.ID_COLUMN})
+
         if "icd9" in self.config.name:
             mdace = mdace.filter(
                 pl.col("diagnosis_code_type").str.contains("icd9") | pl.col("diagnosis_code_type").str.contains("icd9")
@@ -179,15 +184,22 @@ class MDACE_ICD10(datasets.GeneratorBasedBuilder):
         elif "pcs" in self.config.name:
             mdace = mdace.filter(pl.col("code_type").str.contains("pcs"))
 
-        # Transform spans to list[list[int]] format
-        mdace = mdace.with_columns(
-            pl.col("spans")
-            .map_elements(
-                lambda span_list: [[span["start"], span["end"]] for span in span_list],
-                return_dtype=pl.List(pl.List(pl.Int64)),
+        # Transform spans to list[list[int]] format. The processed parquet may
+        # already store spans as List(List(Int64)) (some prepare steps emit the
+        # final format directly); only convert when they are still in the
+        # {start, end} struct form, otherwise the map_elements below would fail
+        # trying to index an int list with the "start"/"end" string keys.
+        spans_dtype = mdace.schema["spans"]
+        inner = spans_dtype.inner if isinstance(spans_dtype, pl.List) else None
+        if isinstance(inner, pl.Struct):
+            mdace = mdace.with_columns(
+                pl.col("spans")
+                .map_elements(
+                    lambda span_list: [[span["start"], span["end"]] for span in span_list],
+                    return_dtype=pl.List(pl.List(pl.Int64)),
+                )
+                .alias("spans")
             )
-            .alias("spans")
-        )
 
         return mdace
 

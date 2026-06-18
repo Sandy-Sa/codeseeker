@@ -303,6 +303,12 @@ def _collection_exists(
         if exc.code() != StatusCode.NOT_FOUND:
             raise Exception(f"Unexpected error: {exc}") from exc
         index_exist = False
+    except ValueError as exc:
+        # Embedded/local Qdrant (path=/:memory:) raises a plain ValueError
+        # ("Collection <name> not found") instead of an HTTP 404 / gRPC status.
+        if "not found" not in str(exc).lower():
+            raise
+        index_exist = False
     return index_exist
 
 

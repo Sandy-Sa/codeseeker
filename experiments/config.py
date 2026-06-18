@@ -1,11 +1,16 @@
 import hashlib
+import os
 import pathlib
 import typing as typ
 import pydantic
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-DUMP_FOLDER = pathlib.Path("~/research/codeseeker/experiments").expanduser()
+# Where per-stage metrics / responses are dumped. Override with $DUMP_FOLDER so
+# nothing leaks into $HOME on Gadi (point it at scratch in the run script).
+DUMP_FOLDER = pathlib.Path(
+    os.environ.get("DUMP_FOLDER", "~/research/codeseeker/experiments")
+).expanduser()
 
 
 class BaseArguments(BaseSettings):

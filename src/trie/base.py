@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
+import os
 import pathlib
 
 import numpy as np
@@ -7,7 +8,11 @@ from rapidfuzz import fuzz, utils, process
 
 from trie import models
 
-TRIE_CACHE_DIR = pathlib.Path("~/.cache/trie").expanduser()
+# Cache for the (frozen) CMS ICD XML. Override with $TRIE_CACHE_DIR so the
+# download is reused across runs and points at scratch on Gadi.
+TRIE_CACHE_DIR = pathlib.Path(
+    os.environ.get("TRIE_CACHE_DIR", "~/.cache/trie")
+).expanduser()
 TRIE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 

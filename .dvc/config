@@ -1,0 +1,4 @@
+[cache]
+    dir = /scratch/gp50/zs5704/projects/codeseeker/dvc
+    shared = group
+    type = symlink

@@ -63,62 +63,21 @@ source "$PBS_JOBFS/.venv/bin/activate"
 python -c 'import sys; print("[run] python:", sys.executable)'
 python -c 'import torch; print("[run] torch.cuda.is_available:", torch.cuda.is_available())'
 
-# --- workload: vLLM concurrency test with Qwen3-0.6B ---
-module load apptainer
+# --- workload: DVC agentic-coding pipeline (vLLM up -> dvc repro -> down) ------
+# scripts/run_pipeline.sh launches vLLM (via the apptainer SIF below), waits for
+# /v1/models, runs `dvc repro`, then tears vLLM down. The vLLM model MUST match
+# `model.deployment` in params.yaml and PORT must match `model.api_base`.
 
+export SCRATCH_BASE="/scratch/gp50/zs5704/projects/codeseeker"
 export HF_HOME="/scratch/gp50/zs5704/hf"
-SIF="/scratch/gp50/zs5704/apptainer/vllm-020.sif"
-PORT=8000
-MODEL="openai/gpt-oss-20b"
+export VLLM_SIF="/scratch/gp50/zs5704/apptainer/vllm-020.sif"
+export PORT=8000
+export MODEL="deepseek-ai/DeepSeek-R1-Distill-Llama-70B"
+export TP=1
+export GPU_MEM_UTIL=0.70
+export QDRANT_LOCAL_PATH="${PBS_JOBFS}/.qdrant_local"
+export DVC_TARGET="${DVC_TARGET:-analyse@mdace-icd10cm}"
 
-# Start vLLM server in background
-apptainer exec --nv \
-  --bind /scratch/gp50:/scratch/gp50 \
-  --env HF_HOME="${HF_HOME}" \
-  --env HF_HUB_OFFLINE=1 \
-  --env TORCHINDUCTOR_CACHE_DIR="${PBS_JOBFS}/torchinductor" \
-  --env TIKTOKEN_RS_CACHE_DIR=/scratch/gp50/zs5704/.cache/tiktoken-rs-cache \
-  --env VLLM_CACHE_ROOT="${PBS_JOBFS}/vllm_cache" \
-  "$SIF" python3 -m vllm.entrypoints.openai.api_server \
-    --model "$MODEL" \
-    --host 127.0.0.1 \
-    --port "$PORT" \
-    --gpu-memory-utilization 0.70 \
-    --tensor-parallel-size 1 &
+bash "$WORKDIR/scripts/run_pipeline.sh"
 
-VLLM_PID=$!
-
-# Wait for server to be ready
-echo "Waiting for vLLM server..."
-until curl -s http://127.0.0.1:${PORT}/v1/models > /dev/null 2>&1; do
-  sleep 15
-  if ! kill -0 "$VLLM_PID" 2>/dev/null; then
-    echo "FATAL: vLLM server died"
-    exit 1
-  fi
-done
-echo "vLLM server ready"
-
-export OPENAI_BASE_URL="http://localhost:8000/v1"
-export OPENAI_API_KEY="-"
-
-REASONING_EFFORT="low"
-TEST_DATA="/scratch/gp50/zs5704/projects/"
-
-echo "[test] === model=$MODEL === with reasonging=$REASONING_EFFORT ==="
-
-dvc exp run -S model="$MODEL" \
-  -S reasoning_effort="$REASONING_EFFORT" \
-  -S max_concurrent=96 \
-  -S data_dir="$TEST_DATA" \
-  -S code_description_path="/scratch/gp50/zs5704/datasets/mimic-data/mimic-iv-2.2/hosp/" \
-  -S guidelines_path="/scratch/gp50/zs5704/projects/prompt-icd/datasets/guidelines/icd10_guidelines.parquet" \
-  -S code_type="ICD-10" \
-  -S search.mrconso_path="/scratch/gp50/zs5704/datasets/umls/MRCONSO.RRF" \
-  -S evaluation.label_path="/scratch/gp50/zs5704/projects/prompt-icd/datasets/processed_mimic_iv_full.parquet" \
-  -S evaluation.label_config.diag_column="diagnoses_code" \
-  -S evaluation.label_config.proc_column="procedure_code" 
-
-
-kill $VLLM_PID 2>/dev/null
 echo "[run] done"

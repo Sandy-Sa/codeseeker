@@ -18,9 +18,22 @@ from retrieval.qdrant_search.models import CollectionBody
 
 
 def _init_client(
-    host: str, port: int, grpc_port: None | int, **kwargs: Any
+    host: str | None,
+    port: int | None,
+    grpc_port: None | int,
+    local_path: str | None = None,
+    **kwargs: Any,
 ) -> qdrant_client.QdrantClient:
-    """Initialize the client."""
+    """Initialize the client.
+
+    When ``local_path`` is provided the client runs embedded (no server): a
+    directory path opens an on-disk index, the literal ``":memory:"`` opens an
+    in-process index. Otherwise a server connection at ``host:port`` is used.
+    """
+    if local_path:
+        if local_path == ":memory:":
+            return qdrant_client.QdrantClient(location=":memory:")
+        return qdrant_client.QdrantClient(path=local_path)
     try:
         return qdrant_client.QdrantClient(
             url=host,
@@ -65,18 +78,20 @@ class QdrantSearchService:
 
     def __init__(
         self,
-        host: str,
-        port: int,
-        grpc_port: None | int,
+        host: str | None = None,
+        port: int | None = None,
+        grpc_port: None | int = None,
+        local_path: str | None = None,
     ):
         self.host = host
         self.port = port
         self.grpc_port = grpc_port
+        self.local_path = local_path
         self._client = None
-        self._spawn_service
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}[{self.host}:{self.port}]"
+        target = self.local_path if self.local_path else f"{self.host}:{self.port}"
+        return f"{type(self).__name__}[{target}]"
 
     def _make_cmd(self) -> list[str]:
         return [
@@ -153,7 +168,9 @@ class QdrantSearchService:
     @property
     def client(self) -> qdrant_client.QdrantClient:
         if self._client is None:
-            self._client = _init_client(self.host, self.port, self.grpc_port)
+            self._client = _init_client(
+                self.host, self.port, self.grpc_port, local_path=self.local_path
+            )
         return self._client
 
     def create_collection(self, *, collection_name: str, body: CollectionBody) -> None:

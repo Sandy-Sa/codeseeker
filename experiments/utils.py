@@ -2,6 +2,7 @@ from collections import OrderedDict, defaultdict
 from functools import partial
 import hashlib
 import json
+import os
 import pathlib
 import typing
 
@@ -151,6 +152,9 @@ def _init_client_fn(
     api_version: str | None = None,
     **kwargs,
 ) -> typing.Callable:
+    cache_root = pathlib.Path(
+        os.environ.get("THROUGHSTER_CACHE_DIR", "~/.cache/throughster")
+    ).expanduser()
     return partial(
         create_interface,
         provider=provider,
@@ -159,7 +163,7 @@ def _init_client_fn(
         endpoint=endpoint,
         model_name=deployment,
         use_cache=use_cache,
-        cache_dir=str(pathlib.Path(f"~/.cache/throughster/{deployment}").expanduser()),
+        cache_dir=str(cache_root / deployment),
     )
 
 

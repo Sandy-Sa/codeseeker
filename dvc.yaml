@@ -1,0 +1,63 @@
+# DVC pipeline for the agentic coding benchmark (MDACE vertical slice).
+#
+# Chain (per dataset): stage_data -> prep -> analyse -> [locate -> verify -> assign]
+# Only stage_data/prep/analyse are wired for now; the remaining agents follow the
+# same pattern once the slice is verified.
+#
+# Run one dataset's chain:  dvc repro analyse@mdace-icd10cm
+# All stage commands set PYTHONPATH=src:experiments so the `src/` and
+# `experiments/` modules resolve identically on every machine.
+
+stages:
+  # --- data staging (machine-local raw -> repo-relative processed) ---------
+  stage_mdace_data:
+    cmd: PYTHONPATH=src:experiments python experiments/stages/stage_mdace_data.py
+    deps:
+      - experiments/stages/stage_mdace_data.py
+    params:
+      - raw.mdace_dir
+    outs:
+      - data/mdace/processed/mdace_inpatient_annotations.parquet
+      - data/mdace/processed/mdace_notes.parquet
+
+  # --- prep: load + format the HF dataset ---------------------------------
+  prep:
+    foreach: ${datasets}
+    do:
+      cmd: PYTHONPATH=src:experiments python experiments/stages/prep.py --dataset ${item} --output data/dvc/${item}/prep
+      deps:
+        - experiments/stages/prep.py
+        - experiments/stages/_config.py
+        # MDACE-specific inputs (slice is MDACE-only). Generalize per-dataset
+        # when other loaders are added.
+        - data/mdace/processed/mdace_inpatient_annotations.parquet
+        - data/mdace/splits
+        - src/dataloader
+        - src/trie
+      params:
+        - icd.year
+      outs:
+        - data/dvc/${item}/prep
+
+  # --- analyse: agent + retrieval -----------------------------------------
+  analyse:
+    foreach: ${datasets}
+    do:
+      cmd: PYTHONPATH=src:experiments python experiments/stages/analyse.py --input data/dvc/${item}/prep --output data/dvc/${item}/analyse --metrics-dir data/dvc/${item}/metrics/analyse
+      deps:
+        - experiments/stages/analyse.py
+        - experiments/stages/_config.py
+        - experiments/analyse_agent.py
+        - src/agents/analyse_agent.py
+        - src/retrieval
+        - data/dvc/${item}/prep
+      params:
+        - model
+        - sampling
+        - retrieval
+        - qdrant.local_path
+        - agents.analyse
+        - icd.year
+      outs:
+        - data/dvc/${item}/analyse
+        - data/dvc/${item}/metrics/analyse

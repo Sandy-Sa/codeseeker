@@ -23,6 +23,10 @@ pydantic-settings>=2.2.1
 loguru>=0.7.2
 rich>=13.7.0          # rich.progress is imported at runtime across the pipeline
 
+# --- DVC pipeline orchestration ---
+dvc>=3.50.0
+pyyaml>=6.0           # stage entrypoints read params.yaml (also a dvc dep)
+
 # --- retrieval (retrieval.qdrant_search) ---
 qdrant-client>=1.4.0
 grpcio-tools>=1.60

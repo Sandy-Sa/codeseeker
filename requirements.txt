@@ -1,0 +1,43 @@
+# requirements.txt for the Gadi env build (init.sh) — coding-agent pipeline only.
+# Installed with: uv pip install -r requirements.txt --torch-backend=cu129
+#
+# Scope: experiments/*_agent.py and their import closure (src/agents,
+# retrieval.qdrant_search, dataloader->adapt->segmenters/tools.code_trie, trie.icd).
+# Training, finetuning, frontend, and local model-serving deps are excluded:
+# the LLM is served from a separate vLLM endpoint, not from this env.
+#
+# Versions stay loose (matching pyproject.toml) so uv resolves freely, EXCEPT
+# torch, which is pinned so the cu129 backend resolves to a known-good build.
+# torch is still required here for sentence-transformers / fastembed GPU embeddings.
+
+# --- torch (pinned for the cu129 backend) ---
+torch==2.9.1
+
+# --- LLM client + prompting (src/agents) ---
+throughster @ git+https://github.com/MotzWanted/throughster.git@feat/reasoning
+prompt-poet<=0.0.42
+
+# --- core ---
+pydantic>=2.11.3
+pydantic-settings>=2.2.1
+loguru>=0.7.2
+rich>=13.7.0          # rich.progress is imported at runtime across the pipeline
+
+# --- retrieval (retrieval.qdrant_search) ---
+qdrant-client>=1.4.0
+grpcio-tools>=1.60
+fastembed>=0.6.1
+sentence-transformers>=4.1.0
+blake3>=1.0.4
+cbor2>=5.6.5
+
+# --- data loading / adapters (dataloader -> adapt -> segmenters, tools.code_trie) ---
+datasets<3.0.0
+polars>=1.15.0
+intervaltree>=3.1.0
+spacy>=2.2.0,<4.0.0
+
+# --- ICD trie (trie.icd, trie.base) ---
+rapidfuzz>=3.13.0
+fitz>=0.0.1.dev2
+pymupdf>=1.25.5

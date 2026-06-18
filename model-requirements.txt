@@ -1,0 +1,2 @@
+deepseek-ai/DeepSeek-R1-Distill-Llama-70B
+openai/gpt-oss-20b

@@ -44,7 +44,12 @@ def main() -> None:
 
     skip = set(SKIP_INDICES.get(args.dataset, []))
     if skip:
-        dataset = dataset.select(i for i in range(len(dataset)) if i not in skip)
+        # Pass a concrete list (not a generator): HF can't hash a generator, so
+        # it assigns a *random* dataset fingerprint, which lands in state.json and
+        # makes save_to_disk non-deterministic -- DVC then sees the `prep` output
+        # as modified on every run and needlessly re-runs `analyse`.
+        keep = [i for i in range(len(dataset)) if i not in skip]
+        dataset = dataset.select(keep)
 
     dataset.save_to_disk(args.output)
 

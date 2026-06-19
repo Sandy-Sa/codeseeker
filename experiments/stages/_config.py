@@ -54,6 +54,23 @@ class QdrantConfig(pydantic.BaseModel):
     local_path: str = "./.qdrant_local"
 
 
+class StagingCopy(pydantic.BaseModel):
+    """A single ``raw_dir``-relative source -> repo-relative dest copy."""
+
+    src: str
+    dest: str
+
+
+class StagingEntry(pydantic.BaseModel):
+    """Per-dataset staging manifest (see ``params.yaml -> staging``)."""
+
+    raw_dir: str
+    copies: list[StagingCopy] = []
+    staged_dir: str | None = None
+    splits_file: str | None = None
+    skip_indices: list[int] = []
+
+
 class AgentConfig(pydantic.BaseModel):
     agent_type: str
     prompt_name: str
@@ -72,6 +89,7 @@ class PipelineConfig(pydantic.BaseModel):
     """Top-level view of ``params.yaml``."""
 
     datasets: list[str] = ["mdace-icd10cm"]
+    staging: dict[str, StagingEntry] = {}
     model: ModelConfig = ModelConfig()
     sampling: SamplingConfig = SamplingConfig()
     icd: IcdConfig = IcdConfig()

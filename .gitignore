@@ -150,12 +150,14 @@ throughput/*
 .exceptions/*
 
 data/*
+# Consolidated, git-tracked dataset splits (one *_split.feather per dataset).
+# These are small, deterministic, and needed for cross-machine reproducibility.
+!data/splits/
 .pbs/*
 
 # Embedded Qdrant on-disk index (runtime scratch; rebuilt each run)
 .qdrant_local/
 
-# Machine-specific DVC cache location lives here, not in tracked .dvc/config
-.dvc/config.local
+
 /.dvc/tmp
 /.dvc/cache

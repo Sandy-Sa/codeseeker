@@ -10,34 +10,41 @@
 
 stages:
   # --- data staging (machine-local raw -> repo-relative processed) ---------
-  stage_mdace_data:
-    cmd: PYTHONPATH=src:experiments python experiments/stages/stage_mdace_data.py
-    deps:
-      - experiments/stages/stage_mdace_data.py
-    params:
-      - raw.mdace_dir
-    outs:
-      - data/mdace/processed/mdace_inpatient_annotations.parquet
-      - data/mdace/processed/mdace_notes.parquet
+  # Generic over the `staging` manifest in params.yaml; one item per dataset.
+  stage_data:
+    foreach: ${staging}
+    do:
+      cmd: PYTHONPATH=src:experiments python experiments/stages/stage_data.py --dataset ${key}
+      deps:
+        - experiments/stages/stage_data.py
+        - experiments/stages/_config.py
+      params:
+        # raw_dir is intentionally NOT hashed (machine-local); the copy mapping
+        # determines the staged output, which DVC also tracks by content hash.
+        - staging.${key}.copies
+      outs:
+        - ${item.staged_dir}
 
   # --- prep: load + format the HF dataset ---------------------------------
+  # Static code deps stay literal (DRY across datasets); the per-dataset staged
+  # data dir + split file are interpolated as scalars (DVC 3.x can't interpolate
+  # a whole list into deps/outs).
   prep:
-    foreach: ${datasets}
+    foreach: ${staging}
     do:
-      cmd: PYTHONPATH=src:experiments python experiments/stages/prep.py --dataset ${item} --output data/dvc/${item}/prep
+      cmd: PYTHONPATH=src:experiments python experiments/stages/prep.py --dataset ${key} --output data/dvc/${key}/prep
       deps:
         - experiments/stages/prep.py
         - experiments/stages/_config.py
-        # MDACE-specific inputs (slice is MDACE-only). Generalize per-dataset
-        # when other loaders are added.
-        - data/mdace/processed/mdace_inpatient_annotations.parquet
-        - data/mdace/splits
         - src/dataloader
         - src/trie
+        - ${item.staged_dir}
+        - ${item.splits_file}
       params:
+        - staging.${key}.skip_indices
         - icd.year
       outs:
-        - data/dvc/${item}/prep
+        - data/dvc/${key}/prep
 
   # --- analyse: agent + retrieval -----------------------------------------
   analyse:
@@ -61,3 +68,69 @@ stages:
       outs:
         - data/dvc/${item}/analyse
         - data/dvc/${item}/metrics/analyse
+
+  # --- locate: agent (no retrieval) ---------------------------------------
+  locate:
+    foreach: ${datasets}
+    do:
+      cmd: PYTHONPATH=src:experiments python experiments/stages/locate.py --input data/dvc/${item}/analyse --output data/dvc/${item}/locate --metrics-dir data/dvc/${item}/metrics/locate
+      deps:
+        - experiments/stages/locate.py
+        - experiments/stages/_llm_stage.py
+        - experiments/stages/_config.py
+        - experiments/locate_agent.py
+        - src/agents/locate_agent.py
+        - src/trie
+        - data/dvc/${item}/analyse
+      params:
+        - model
+        - sampling
+        - agents.locate
+        - icd.year
+      outs:
+        - data/dvc/${item}/locate
+        - data/dvc/${item}/metrics/locate
+
+  # --- verify: agent (no retrieval) ---------------------------------------
+  verify:
+    foreach: ${datasets}
+    do:
+      cmd: PYTHONPATH=src:experiments python experiments/stages/verify.py --input data/dvc/${item}/locate --output data/dvc/${item}/verify --metrics-dir data/dvc/${item}/metrics/verify
+      deps:
+        - experiments/stages/verify.py
+        - experiments/stages/_llm_stage.py
+        - experiments/stages/_config.py
+        - experiments/verify_agent.py
+        - src/agents/verify_agent.py
+        - src/trie
+        - data/dvc/${item}/locate
+      params:
+        - model
+        - sampling
+        - agents.verify
+        - icd.year
+      outs:
+        - data/dvc/${item}/verify
+        - data/dvc/${item}/metrics/verify
+
+  # --- assign: agent (final stage) ----------------------------------------
+  assign:
+    foreach: ${datasets}
+    do:
+      cmd: PYTHONPATH=src:experiments python experiments/stages/assign.py --input data/dvc/${item}/verify --output data/dvc/${item}/assign --metrics-dir data/dvc/${item}/metrics/assign
+      deps:
+        - experiments/stages/assign.py
+        - experiments/stages/_llm_stage.py
+        - experiments/stages/_config.py
+        - experiments/assign_agent.py
+        - src/agents/assign_agent.py
+        - src/trie
+        - data/dvc/${item}/verify
+      params:
+        - model
+        - sampling
+        - agents.assign
+        - icd.year
+      outs:
+        - data/dvc/${item}/assign
+        - data/dvc/${item}/metrics/assign

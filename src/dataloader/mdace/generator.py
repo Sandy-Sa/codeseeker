@@ -39,11 +39,12 @@ It includes annotated evidence spans, supports multi-label classification tasks,
 and is split into train/validation/test sets.
 """
 
-_SPLITS = {
-    "train": PROJECT_ROOT / "data/mdace/splits/MDace-ev-train.csv",
-    "val": PROJECT_ROOT / "data/mdace/splits/MDace-ev-val.csv",
-    "test": PROJECT_ROOT / "data/mdace/splits/MDace-ev-test.csv",
-}
+# Consolidated, git-tracked split file (one row per note id, `split` column in
+# {train,val,test}). Mirrors the MIMIC-III/IV `*_split.feather` layout so every
+# dataset's splits live under data/splits/. The membership is byte-identical to
+# the previous per-split MDace-ev-*.csv files (which were read with a header row,
+# so each file's first line was dropped -- that exact id set is preserved here).
+_SPLITS_PATH = PROJECT_ROOT / "data/splits/mdace_icd10_split.feather"
 
 
 class MdaceConfig(datasets.BuilderConfig):
@@ -124,15 +125,19 @@ class MDACE_ICD10(datasets.GeneratorBasedBuilder):
     def _split_generators(  # type: ignore
         self, dl_manager: datasets.DownloadManager
     ) -> list[datasets.SplitGenerator]:
-        # splits = {split: dl_manager.download_and_extract(str(path)) for split, path in _SPLITS.items()}
-        splits = {split: pl.read_csv(path, new_columns=[mimic_utils.ID_COLUMN]) for split, path in _SPLITS.items()}
+        # Load the consolidated split file and recover the per-split id lists.
+        split_table = pl.read_ipc(_SPLITS_PATH, memory_map=False).rename(
+            {"_id": mimic_utils.ID_COLUMN}
+        )
+        # Ensure note_id is the same type in both `splits` and `data`.
+        split_table = split_table.with_columns(pl.col(mimic_utils.ID_COLUMN).cast(pl.Int64))
+        splits = {
+            name: split_table.filter(pl.col("split") == name)
+            for name in ("train", "val", "test")
+        }
 
         data = self._process_data()
         aggregated_data = self.aggregate_rows(data)
-        # Ensure note_id is the same type in both `splits` and `data`
-        splits = {
-            k: v.with_columns(pl.col(mimic_utils.ID_COLUMN).cast(pl.Int64)) for k, v in splits.items()
-        }  # Cast to Int64
 
         return [
             datasets.SplitGenerator(

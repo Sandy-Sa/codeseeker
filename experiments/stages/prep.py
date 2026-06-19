@@ -16,12 +16,6 @@ from dataloader.interface import load_dataset
 import utils as exp_utils
 from stages import _config
 
-# Per-dataset rows to drop after formatting (e.g. known-bad MDACE notes). These
-# were hard-coded in the original `benchmark.py`; keyed by dataset here.
-SKIP_INDICES: dict[str, list[int]] = {
-    "mdace-icd10cm": [27, 179, 260, 327, 379, 394],
-}
-
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Prep stage")
@@ -42,7 +36,8 @@ def main() -> None:
     dataset = load_dataset(DatasetConfig(**dataloader.DATASET_CONFIGS[args.dataset]))
     dataset = exp_utils.format_dataset(dataset, xml_trie, debug=False)
 
-    skip = set(SKIP_INDICES.get(args.dataset, []))
+    staging = cfg.staging.get(args.dataset)
+    skip = set(staging.skip_indices if staging else [])
     if skip:
         # Pass a concrete list (not a generator): HF can't hash a generator, so
         # it assigns a *random* dataset fingerprint, which lands in state.json and

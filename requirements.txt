@@ -49,3 +49,4 @@ rapidfuzz>=3.13.0
 fitz>=0.0.1.dev2
 pymupdf>=1.25.5
 beautifulsoup4>=4.12
+requests>=2.31      # trie.connectors.cms downloads CMS ICD ZIPs over HTTP

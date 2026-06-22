@@ -123,12 +123,32 @@ class HfBaseAgent(HfOperation):
                 "Please check the input data and the format_request method."
             )
 
-        responses = self.batch_call(batch_rows)
+        try:
+            responses = self.batch_call(batch_rows)
+        except Exception as exc:
+            # batch_call may *raise* (not just return) a client error such as
+            # httpx.HTTPStatusError, which cannot be reconstructed by dill when
+            # it crosses the datasets.map(num_proc>1) worker boundary -- that
+            # silently deadlocks the pool. Convert to a picklable RuntimeError so
+            # the stage fails loudly instead of hanging.
+            raise RuntimeError(
+                f"LLM batch_call failed: {type(exc).__name__}: {exc}"
+            ) from None
 
         output = defaultdict(list)
         for resp in responses:
             if isinstance(resp, Exception):
-                raise resp
+                # Re-raise as a picklable RuntimeError. Client exceptions such as
+                # httpx.HTTPStatusError cannot be reconstructed by dill when
+                # returned from a datasets.map(num_proc>1) worker -- that silently
+                # kills the pool's results-handler thread and deadlocks the parent
+                # process (it spins a CPU forever instead of failing). A plain
+                # RuntimeError always pickles, so the stage aborts loudly with a
+                # clear message. `from None` avoids re-chaining the unpicklable
+                # original as __cause__.
+                raise RuntimeError(
+                    f"LLM request failed after retries: {type(resp).__name__}: {resp}"
+                ) from None
             try:
                 resp_dict = self.parser(resp.choices[0].content)
             except Exception:

@@ -35,7 +35,7 @@ staging:
 # LLM served by vLLM (OpenAI-compatible endpoint on the GPU node).
 model:
   provider: vllm
-  api_base: http://as2512.internal:8001/v1
+  api_base: http://as2512.internal:8000/v1
   deployment: openai/gpt-oss-20b
   revision: null          # TODO: pin the HF revision SHA for reproducibility
   endpoint: completions
@@ -80,6 +80,11 @@ agents:
   verify:
     agent_type: reasoning
     prompt_name: verify_agent/few_per_term_v2
+    # verify builds large prompts (per-code ICD tabular text); measured max
+    # prompt ~24.8k tokens. Cap output so prompt+output fits gpt-oss-20b's 65536
+    # window locally. (The global sampling.max_tokens=50000 overflows it.)
+    max_tokens: 30000
   assign:
     agent_type: reasoning
     prompt_name: assign_agent/reasoning_v7
+    max_tokens: 30000

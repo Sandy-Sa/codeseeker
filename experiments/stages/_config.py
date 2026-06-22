@@ -74,6 +74,11 @@ class StagingEntry(pydantic.BaseModel):
 class AgentConfig(pydantic.BaseModel):
     agent_type: str
     prompt_name: str
+    # Optional per-stage cap on output tokens. Used to fit a stage's prompts
+    # into a smaller-context local model (e.g. verify/assign build large prompts
+    # that, with the global sampling.max_tokens, exceed gpt-oss-20b's 65536-token
+    # window). When None the global sampling.max_tokens applies unchanged.
+    max_tokens: int | None = None
 
 
 class IcdConfig(pydantic.BaseModel):

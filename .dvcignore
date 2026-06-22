@@ -1,0 +1,8 @@
+# HuggingFace `datasets` map-cache files. When a stage does
+# `load_from_disk(<previous stage out>)` followed by `.map(...)`, datasets
+# writes `cache-<hash>.arrow` files INTO the loaded dataset's directory --
+# i.e. into the upstream stage's DVC-tracked output dir. They are incidental
+# (regenerated each run, content varies) and must not contribute to the output
+# hash, or `dvc status`/`dvc repro` would never be a clean no-op across stages
+# or machines.
+cache-*.arrow

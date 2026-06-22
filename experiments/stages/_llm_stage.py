@@ -61,10 +61,16 @@ def run_chain_stage(
     eval_trie = _config.build_eval_trie(xml_trie)
 
     agent_cfg = cfg.agents[stage_key]
+    sampling_params = cfg.sampling_params()
+    if agent_cfg.max_tokens is not None:
+        # Per-stage output cap so this stage's prompts fit the model context
+        # (see AgentConfig.max_tokens). Faithful where the global cap already
+        # fits -- only narrows it for the large-prompt stages on a small model.
+        sampling_params["max_tokens"] = agent_cfg.max_tokens
     agent = create_agent(
         agent_type=agent_cfg.agent_type,
         prompt_name=agent_cfg.prompt_name,
-        sampling_params=cfg.sampling_params(),
+        sampling_params=sampling_params,
     )
 
     maker_kwargs: dict[str, typ.Any] = {

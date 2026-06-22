@@ -59,7 +59,14 @@ stages:
         - src/retrieval
         - data/dvc/${item}/prep
       params:
-        - model
+        # model.* except api_base: the endpoint URL is machine-local and must
+        # NOT invalidate stages, or a cache synced from Gadi (different api_base)
+        # would re-run the whole chain. WHICH model is pinned by deployment+revision.
+        - model.provider
+        - model.deployment
+        - model.revision
+        - model.endpoint
+        - model.use_cache
         - sampling
         - retrieval
         - qdrant.local_path
@@ -83,7 +90,14 @@ stages:
         - src/trie
         - data/dvc/${item}/analyse
       params:
-        - model
+        # model.* except api_base: the endpoint URL is machine-local and must
+        # NOT invalidate stages, or a cache synced from Gadi (different api_base)
+        # would re-run the whole chain. WHICH model is pinned by deployment+revision.
+        - model.provider
+        - model.deployment
+        - model.revision
+        - model.endpoint
+        - model.use_cache
         - sampling
         - agents.locate
         - icd.year
@@ -105,7 +119,14 @@ stages:
         - src/trie
         - data/dvc/${item}/locate
       params:
-        - model
+        # model.* except api_base: the endpoint URL is machine-local and must
+        # NOT invalidate stages, or a cache synced from Gadi (different api_base)
+        # would re-run the whole chain. WHICH model is pinned by deployment+revision.
+        - model.provider
+        - model.deployment
+        - model.revision
+        - model.endpoint
+        - model.use_cache
         - sampling
         - agents.verify
         - icd.year
@@ -127,7 +148,14 @@ stages:
         - src/trie
         - data/dvc/${item}/verify
       params:
-        - model
+        # model.* except api_base: the endpoint URL is machine-local and must
+        # NOT invalidate stages, or a cache synced from Gadi (different api_base)
+        # would re-run the whole chain. WHICH model is pinned by deployment+revision.
+        - model.provider
+        - model.deployment
+        - model.revision
+        - model.endpoint
+        - model.use_cache
         - sampling
         - agents.assign
         - icd.year

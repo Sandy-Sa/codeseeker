@@ -81,7 +81,10 @@ default-groups = ["dev", "dataloader", "test", "trie", "segmenter"]
 no-build-isolation-package = ["flash-attn", "xformers"]
 
 [tool.uv.sources]
-throughster =  { git = 'https://github.com/MotzWanted/throughster.git', branch = 'feat/reasoning'}
+# Pinned to a SHA (was branch 'feat/reasoning') so every machine's venv resolves
+# the identical throughster commit -- required for cross-machine reproducible
+# stage hashes (no uv.lock is committed). SHA == current feat/reasoning HEAD.
+throughster =  { git = 'https://github.com/MotzWanted/throughster.git', rev = 'bedca53f7ee9284764254aa689674f052fe556f4'}
 ml-datasets = { git = 'https://github.com/corticph/ml-datasets.git', branch = 'tanner-health'}
 
 [build-system]

@@ -35,7 +35,8 @@ class SamplingConfig(pydantic.BaseModel):
     temperature: float = 0.6
     max_tokens: int = 50_000
     seed: int = 1
-    reasoning_effort: str = "low"
+    # gpt-oss-only knob; None for models (e.g. DeepSeek-R1-Distill) that reject it.
+    reasoning_effort: str | None = None
 
 
 class RetrievalConfig(pydantic.BaseModel):
@@ -132,13 +133,17 @@ class PipelineConfig(pydantic.BaseModel):
         # ``max_completion_tokens`` (a chat/completions-only field) and falls back
         # to a small default, truncating the reasoning before the <answer> block.
         # Use ``max_tokens`` so the agent's structured output is actually emitted.
-        return {
+        params = {
             "temperature": self.sampling.temperature,
             "max_tokens": self.sampling.max_tokens,
             "seed": self.sampling.seed,
             "model": self.model.deployment,
-            "reasoning_effort": self.sampling.reasoning_effort,
         }
+        # Only forward reasoning_effort when explicitly configured (gpt-oss);
+        # DeepSeek-R1-Distill and most models reject the unknown field.
+        if self.sampling.reasoning_effort is not None:
+            params["reasoning_effort"] = self.sampling.reasoning_effort
+        return params
 
     def qdrant_local_path(self) -> str:
         return os.environ.get("QDRANT_LOCAL_PATH", self.qdrant.local_path)

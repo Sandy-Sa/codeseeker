@@ -1,2 +1,4 @@
-deepseek-ai/DeepSeek-R1-Distill-Llama-70B
-openai/gpt-oss-20b
+# HF repos prefetched by init.sh on copyq (the only Gadi queue with internet).
+# Gadi reproduces the paper with the 70B; gpt-oss-20b is the local-only dev model
+# and is intentionally not prefetched here. Pin the revision to match params.yaml.
+deepseek-ai/DeepSeek-R1-Distill-Llama-70B@b1c0b44b4369b597ad119a196caf79a9c40e141e

@@ -33,11 +33,14 @@ staging:
     skip_indices: [27, 179, 260, 327, 379, 394]
 
 # LLM served by vLLM (OpenAI-compatible endpoint on the GPU node).
+# Paper reproduction uses DeepSeek-R1-Distill-Llama-70B; vLLM is launched on the
+# same compute node (run.sh), so api_base points at localhost. api_base is NOT a
+# hashed param (see dvc.yaml) -- only deployment+revision pin WHICH model.
 model:
   provider: vllm
-  api_base: http://as2512.internal:8000/v1
-  deployment: openai/gpt-oss-20b
-  revision: null          # TODO: pin the HF revision SHA for reproducibility
+  api_base: http://localhost:8000/v1
+  deployment: deepseek-ai/DeepSeek-R1-Distill-Llama-70B
+  revision: b1c0b44b4369b597ad119a196caf79a9c40e141e   # DeepSeek-R1-Distill-Llama-70B HF SHA (provenance; never downloaded)
   endpoint: completions
   use_cache: true
 
@@ -45,14 +48,15 @@ sampling:
   temperature: 0.6
   max_tokens: 50000
   seed: 1
-  reasoning_effort: low
+  # reasoning_effort intentionally unset: it is a gpt-oss-only knob. DeepSeek-R1
+  # does its reasoning via the chat template, and vLLM rejects the unknown field.
 
 icd:
   year: 2022
 
 retrieval:
   embed_model: pritamdeka/S-PubMedBert-MS-MARCO
-  embed_revision: null    # TODO: pin the HF revision SHA
+  embed_revision: 96786c7024f95c5aac7f2b9a18086c7b97b23036  # pritamdeka/S-PubMedBert-MS-MARCO HF SHA
   embed_query_key: output
   distance: Cosine
   topk: 10
@@ -80,11 +84,9 @@ agents:
   verify:
     agent_type: reasoning
     prompt_name: verify_agent/few_per_term_v2
-    # verify builds large prompts (per-code ICD tabular text); measured max
-    # prompt ~24.8k tokens. Cap output so prompt+output fits gpt-oss-20b's 65536
-    # window locally. (The global sampling.max_tokens=50000 overflows it.)
-    max_tokens: 30000
+    # No per-stage max_tokens cap: verify builds large prompts (~24.8k tokens) but
+    # the 70B's 128k window fits prompt + the global sampling.max_tokens (50000).
+    # (The 30000 caps here were a gpt-oss-20b 65536-window workaround.)
   assign:
     agent_type: reasoning
     prompt_name: assign_agent/reasoning_v7
-    max_tokens: 30000

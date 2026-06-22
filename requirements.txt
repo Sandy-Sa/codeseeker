@@ -14,7 +14,10 @@
 torch==2.9.1
 
 # --- LLM client + prompting (src/agents) ---
-throughster @ git+https://github.com/MotzWanted/throughster.git@feat/reasoning
+# Pinned to the same SHA as pyproject.toml (was branch @feat/reasoning) so the
+# Gadi env resolves the identical throughster commit -- required for cross-machine
+# reproducible stage outputs (the env is not a DVC dep, so drift is silent).
+throughster @ git+https://github.com/MotzWanted/throughster.git@bedca53f7ee9284764254aa689674f052fe556f4
 prompt-poet<=0.0.42
 
 # --- core ---

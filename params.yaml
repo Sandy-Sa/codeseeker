@@ -71,7 +71,12 @@ qdrant:
   local_path: ./.qdrant_local
 
 runtime:
-  num_workers: 4
+  # Concurrent in-flight requests to vLLM (datasets.map num_proc). vLLM's
+  # continuous batching handles far more than 4 sequences on 2xH200, so the
+  # per-doc / per-candidate LLM calls in verify+assign were throughput-bound at 4.
+  # Not a DVC-hashed param (machine-local perf only), so changing it does not
+  # invalidate cached stages. Keep <= run.sh ncpus (24).
+  num_workers: 16
   batch_size: 1
 
 agents:

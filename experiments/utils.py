@@ -71,7 +71,16 @@ def format_dataset(
 
 
 def build_icd_trie(year: int = 2022) -> ICD10Trie:
-    trie = ICD10Trie.from_cms(year=year)
+    # Prefer the prestaged cache: ICD10Trie.from_cms() unconditionally scrapes
+    # cms.gov (src/trie/connectors/cms.py) even when every file is already
+    # cached, which fails on Gadi's offline compute nodes. When scripts/prestage.sh
+    # has populated the cache dir, load it directly with from_dir (no network);
+    # only fall back to from_cms when the cache is missing (online/dev machines).
+    cache_dir = ICD10Trie.CACHE_DIR / f"icd_{year}"
+    if cache_dir.is_dir() and any(cache_dir.iterdir()):
+        trie = ICD10Trie.from_dir(cache_dir)
+    else:
+        trie = ICD10Trie.from_cms(year=year)
     trie.parse()
     return trie
 

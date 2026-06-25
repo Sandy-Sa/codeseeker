@@ -83,7 +83,10 @@ export PORT="${PORT:-8000}"
 export MODEL="${MODEL:-deepseek-ai/DeepSeek-R1-Distill-Llama-70B}"
 export TP="${TP:-2}"                      # tensor-parallel size (2 H200 for the 70B)
 export GPU_MEM_UTIL="${GPU_MEM_UTIL:-0.90}"
-export DVC_TARGET="${DVC_TARGET:-analyse@mdace-icd10cm}"
+# Empty (default) => reproduce the entire DAG (stage_data -> prep -> analyse ->
+# locate -> verify -> assign, for every dataset). Set to a stage like
+# `analyse@mdace-icd10cm` to run just that stage and its upstream deps.
+export DVC_TARGET="${DVC_TARGET:-}"
 
 # Caches off $HOME onto scratch / node-local jobfs (speed only; not DVC deps).
 export TRIE_CACHE_DIR="${TRIE_CACHE_DIR:-$SCRATCH_BASE/cache/trie}"
@@ -94,7 +97,7 @@ export QDRANT_LOCAL_PATH="${QDRANT_LOCAL_PATH:-$PBS_JOBFS/.qdrant_local}"
 mkdir -p "$TRIE_CACHE_DIR" "$DUMP_FOLDER" "$THROUGHSTER_CACHE_DIR"
 
 echo "[pipeline] model:       $MODEL  (port $PORT, tp=$TP, mem_util=$GPU_MEM_UTIL)"
-echo "[pipeline] dvc target:  $DVC_TARGET"
+echo "[pipeline] dvc target:  ${DVC_TARGET:-<full DAG>}"
 echo "[pipeline] qdrant path: $QDRANT_LOCAL_PATH"
 echo "[pipeline] vllm sif:    $VLLM_SIF"
 
@@ -133,6 +136,10 @@ echo "[pipeline] vLLM ready"
 # --- run the pipeline ---------------------------------------------------------
 # Outputs are written into the shared scratch DVC cache (.dvc/config), so they
 # survive even though $WORKDIR is on jobfs.
-dvc repro "$DVC_TARGET"
+if [[ -n "$DVC_TARGET" ]]; then
+  dvc repro "$DVC_TARGET"
+else
+  dvc repro
+fi
 
 echo "[run] done"

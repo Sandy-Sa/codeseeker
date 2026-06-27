@@ -5,6 +5,20 @@ from pathlib import Path
 import re
 import typing as typ
 
+
+def _flatten_exc(exc: BaseException) -> str:
+    """Render an exception (recursively unwrapping ExceptionGroups) to a string.
+
+    throughster runs each request in an anyio task group; a non-StructuredResponseError
+    (e.g. httpx.ReadTimeout after retries) escapes as an unhandled ExceptionGroup whose
+    str() is only "unhandled errors in a TaskGroup (N sub-exception)". Unwrap it so the
+    actual cause is visible in the log instead of being swallowed.
+    """
+    if isinstance(exc, BaseExceptionGroup):
+        inner = "; ".join(_flatten_exc(e) for e in exc.exceptions)
+        return f"{type(exc).__name__}[{inner}]"
+    return f"{type(exc).__name__}: {exc}"
+
 from jinja2 import Environment, FileSystemLoader
 from loguru import logger
 import numpy as np
@@ -132,7 +146,7 @@ class HfBaseAgent(HfOperation):
             # silently deadlocks the pool. Convert to a picklable RuntimeError so
             # the stage fails loudly instead of hanging.
             raise RuntimeError(
-                f"LLM batch_call failed: {type(exc).__name__}: {exc}"
+                f"LLM batch_call failed: {_flatten_exc(exc)}"
             ) from None
 
         output = defaultdict(list)

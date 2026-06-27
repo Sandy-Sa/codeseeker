@@ -7,6 +7,7 @@ import pathlib
 import typing
 
 import datasets
+import httpx
 from loguru import logger
 import pydantic
 import rich
@@ -159,11 +160,23 @@ def _init_client_fn(
     deployment: str,
     use_cache: bool,
     api_version: str | None = None,
+    request_timeout: float | None = None,
     **kwargs,
 ) -> typing.Callable:
     cache_root = pathlib.Path(
         os.environ.get("THROUGHSTER_CACHE_DIR", "~/.cache/throughster")
     ).expanduser()
+    # throughster issues *non-streaming* requests, so the whole generation must
+    # arrive within httpx's read timeout. Its default (600s) is shorter than a
+    # full reasoning generation: DeepSeek-R1-Distill at ~45 tok/s needs ~1100s to
+    # emit sampling.max_tokens (50k). When a long chain-of-thought blows past 600s
+    # httpx raises ReadTimeout, tenacity burns all 10 retries on it, then the bare
+    # timeout (not a StructuredResponseError) escapes throughster's task group as
+    # an unhandled ExceptionGroup -- crashing the entire stage on one slow row.
+    # `request_timeout=None` disables the read/write/pool timeouts so generation is
+    # bounded by max_tokens (and PBS walltime) instead. Keep a finite connect
+    # timeout so a genuinely unreachable server still fails fast.
+    timeout = httpx.Timeout(timeout=request_timeout, connect=10.0)
     return partial(
         create_interface,
         provider=provider,
@@ -173,6 +186,7 @@ def _init_client_fn(
         model_name=deployment,
         use_cache=use_cache,
         cache_dir=str(cache_root / deployment),
+        timeout=timeout,
     )
 
 

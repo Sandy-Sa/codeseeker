@@ -92,7 +92,10 @@ export DVC_TARGET="${DVC_TARGET:-}"
 export TRIE_CACHE_DIR="${TRIE_CACHE_DIR:-$SCRATCH_BASE/cache/trie}"
 export DUMP_FOLDER="${DUMP_FOLDER:-$SCRATCH_BASE/dumps}"
 export THROUGHSTER_CACHE_DIR="${THROUGHSTER_CACHE_DIR:-$SCRATCH_BASE/cache/throughster}"
-export SENTENCE_TRANSFORMERS_HOME="${SENTENCE_TRANSFORMERS_HOME:-$HF_HOME}"
+# Do NOT set SENTENCE_TRANSFORMERS_HOME: it forces the legacy flat cache layout
+# ($HF_HOME/<model>) and is passed down as cache_dir, so the offline lookup misses
+# the embedding model that prestage.sh's snapshot_download put in the standard HF
+# hub cache ($HF_HOME/hub/<model>). Letting it default uses HF_HOME/hub correctly.
 export QDRANT_LOCAL_PATH="${QDRANT_LOCAL_PATH:-$PBS_JOBFS/.qdrant_local}"
 mkdir -p "$TRIE_CACHE_DIR" "$DUMP_FOLDER" "$THROUGHSTER_CACHE_DIR"
 

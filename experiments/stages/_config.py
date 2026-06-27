@@ -29,6 +29,10 @@ class ModelConfig(pydantic.BaseModel):
     revision: str | None = None  # pinned HF revision SHA (hashed, never downloaded)
     endpoint: typ.Literal["chat/completions", "completions"] = "completions"
     use_cache: bool = True
+    # httpx read/write/pool timeout (seconds) for each LLM request. None disables
+    # it so a long reasoning generation (bounded by sampling.max_tokens) cannot
+    # trip throughster's 600s default and crash the stage. Not a hashed param.
+    request_timeout: float | None = None
 
 
 class SamplingConfig(pydantic.BaseModel):
@@ -125,6 +129,7 @@ class PipelineConfig(pydantic.BaseModel):
             "endpoint": self.model.endpoint,
             "deployment": self.model.deployment,
             "use_cache": self.model.use_cache,
+            "request_timeout": self.model.request_timeout,
         }
 
     def sampling_params(self) -> dict[str, typ.Any]:

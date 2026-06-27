@@ -101,6 +101,8 @@ stages:
         - sampling
         - agents.locate
         - icd.year
+        # eval trie code space (build_eval_trie) -- not retrieval, but scores metrics
+        - retrieval.all_codes
       outs:
         - data/dvc/${item}/locate
         - data/dvc/${item}/metrics/locate
@@ -130,6 +132,8 @@ stages:
         - sampling
         - agents.verify
         - icd.year
+        # eval trie code space (build_eval_trie) -- not retrieval, but scores metrics
+        - retrieval.all_codes
       outs:
         - data/dvc/${item}/verify
         - data/dvc/${item}/metrics/verify
@@ -159,6 +163,8 @@ stages:
         - sampling
         - agents.assign
         - icd.year
+        # eval trie code space (build_eval_trie) -- not retrieval, but scores metrics
+        - retrieval.all_codes
       outs:
         - data/dvc/${item}/assign
         - data/dvc/${item}/metrics/assign

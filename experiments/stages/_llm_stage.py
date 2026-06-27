@@ -58,7 +58,7 @@ def run_chain_stage(
 
     dataset = datasets.load_from_disk(args.input)
     xml_trie = exp_utils.build_icd_trie(year=cfg.icd.year)
-    eval_trie = _config.build_eval_trie(xml_trie)
+    eval_trie = _config.build_eval_trie(xml_trie, all_codes=cfg.retrieval.all_codes)
 
     agent_cfg = cfg.agents[stage_key]
     sampling_params = cfg.sampling_params()

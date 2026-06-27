@@ -63,7 +63,7 @@ retrieval:
   hnsw:
     m: 32
     ef_construct: 256
-  all_codes: false
+  all_codes: true
 
 qdrant:
   # Embedded on-disk index. Overridable at runtime with $QDRANT_LOCAL_PATH
@@ -82,7 +82,7 @@ runtime:
 agents:
   analyse:
     agent_type: base
-    prompt_name: analyse_agent/base_v2
+    prompt_name: analyse_agent/strict_v3
   locate:
     agent_type: split
     prompt_name: locate_agent/locate_few_terms_v1
@@ -94,4 +94,4 @@ agents:
     # (The 30000 caps here were a gpt-oss-20b 65536-window workaround.)
   assign:
     agent_type: reasoning
-    prompt_name: assign_agent/reasoning_v7
+    prompt_name: assign_agent/reasoning_v6

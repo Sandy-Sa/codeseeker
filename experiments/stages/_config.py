@@ -162,9 +162,19 @@ def load_config(path: str | os.PathLike | None = None) -> PipelineConfig:
     return PipelineConfig.model_validate(raw)
 
 
-def build_eval_trie(xml_trie) -> OrderedDict[str, int]:
-    """ICD-10-CM code -> index map used by the metrics monitor."""
-    icd10cm = [code.name for code in xml_trie.get_root_codes("cm")]
+def build_eval_trie(xml_trie, all_codes: bool = False) -> OrderedDict[str, int]:
+    """ICD code -> index map used by the metrics monitor.
+
+    Mirrors the original end-to-end benchmark (``tanner_benchmark.py``): when
+    ``all_codes`` is set the metrics are computed over the full ICD code space
+    (``xml_trie.lookup``); otherwise only the ICD-10-CM root codes are used.
+    Scoring against the truncated root-code space silently caps recall, so this
+    must match whatever the run's retrieval used.
+    """
+    if all_codes:
+        codes = list(xml_trie.lookup)
+    else:
+        codes = [code.name for code in xml_trie.get_root_codes("cm")]
     return OrderedDict(
-        {code: idx for idx, code in enumerate(sorted(icd10cm), start=1)}
+        {code: idx for idx, code in enumerate(sorted(codes), start=1)}
     )

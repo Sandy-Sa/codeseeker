@@ -216,6 +216,21 @@ def pipe(
         },
         desc="[Assign Agent] Fetching ICD guideline data for codes.",
     )
+    # Pin an explicit output schema. The agent returns `{**batch, **parsed}`,
+    # overriding `output` (originally Sequence(string) retrieved codes) with the
+    # parsed prediction indices. Since the agent can now legitimately return an
+    # empty `output` ([] => "no applicable code"), a shard whose examples are all
+    # empty cannot infer the element type and falls back to the prior string type.
+    # Under num_proc each shard infers its own schema, so a mix of int64 and
+    # string shards fails to concatenate ("features can't be aligned"). Forcing
+    # the schema here makes every shard write `output` as Sequence(int64).
+    agent_features = datasets.Features(
+        {
+            **assign_dataset.features,
+            "output": datasets.Sequence(datasets.Value("int64")),
+            "reasoning": datasets.Value("string"),
+        }
+    )
     assign_dataset = assign_dataset.map(
         agent,
         num_proc=num_workers,
@@ -224,6 +239,7 @@ def pipe(
         desc=f"Predicting with seed `{seed}`.",
         remove_columns=exp_utils._get_dataset(dataset).column_names,
         load_from_cache_file=False,
+        features=agent_features,
     )
 
     assign_eval_data = assign_dataset.map(

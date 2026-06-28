@@ -7,6 +7,7 @@ from agents.base import HfBaseAgent
 from agents.errors import StructuredError
 
 ANSWER_PATTERN = r"<answer>.*?(\b[0-9]\d{0,3}(?:\s*,\s*[1-9]\d{0,3})*\b).*?<\/answer>"
+ANSWER_BLOCK = r"<answer>(.*?)</answer>"
 
 
 class AssignAgent(HfBaseAgent):
@@ -16,16 +17,20 @@ class AssignAgent(HfBaseAgent):
         """Compress the choices."""
         content = content.replace("IDs:", "").replace("ID:", "")
         answer_match = re.search(ANSWER_PATTERN, content, re.DOTALL)
-        output = (
-            [int(num.strip()) for num in answer_match.group(1).split(",")]
-            if answer_match
-            else []
+        if answer_match:
+            output = [int(num.strip()) for num in answer_match.group(1).split(",")]
+            return {"reasoning": content, "output": output}
+        # An <answer> block with no IDs (e.g. "None", "N/A") is a valid
+        # "no applicable code" prediction, not a parse failure -- the retrieved
+        # candidate set can genuinely contain zero correct codes. Return an empty
+        # output instead of raising, so a single such example doesn't retry 10x
+        # and then abort the whole stage.
+        if re.search(ANSWER_BLOCK, content, re.DOTALL):
+            return {"reasoning": content, "output": []}
+        # No answer block at all => truncated/malformed; let throughster retry.
+        raise StructuredError(
+            f"Could not find any relevant answer in the response: {content[-250:]}"
         )
-        if not output:
-            raise StructuredError(
-                f"Could not find any relevant answer in the response: {content[-250:]}"
-            )
-        return {"reasoning": content, "output": output}
 
 
 class StructuredAssignAgent(AssignAgent):

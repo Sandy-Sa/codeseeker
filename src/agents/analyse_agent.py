@@ -34,28 +34,71 @@ class BaseAnalyseAgent(HfBaseAgent):
     def parser(self, content: str) -> dict[str, typ.Any]:
 
         m = re.search(ANSWER_PATTERN, content, re.DOTALL)
-        if not m:
-            raise StructuredError(
-                f"Could not find <answer> tags in response: {content[-250:]}"
-            )
-        raw: str = self._normalise_raw(m.group(1))
+        if m:
+            raw: str = self._normalise_raw(m.group(1))
+            if not raw:
+                raise StructuredError(f"Answer section is empty: {m.group(1)} ")
+            terms = self._tokenise(raw)
+            if not terms:
+                raise StructuredError(
+                    f"Could not parse the structured response: {raw}"
+                )
+            cleaned = {self._clean_term(t) for t in terms if t.strip()}
+        else:
+            # Reasoning models (DeepSeek-R1, Qwen, Gemma, ...) frequently emit the
+            # final list AFTER </think> as a markdown / newline-separated list
+            # WITHOUT the requested <answer> tags. Recover it instead of
+            # discarding an otherwise correct response (which previously triggered
+            # a 10x temperature-escalating retry storm and collapsed recall).
+            # This branch is strictly additive: well-formed <answer> output above
+            # is parsed exactly as before, so the original behaviour is preserved.
+            body = self._strip_thinking(content)
+            cleaned = {
+                t for ln in body.splitlines() if (t := self._clean_term(ln)) and self._is_term(t)
+            }
 
-        if not raw:
-            raise StructuredError(f"Answer section is empty: {m.group(1)} ")
-
-        terms = self._tokenise(raw)
-        if not terms:
-            raise StructuredError(f"Could not parse the structured response: {raw}")
-
-        cleaned = {
-            t.strip().strip('"').strip("'").rstrip(".").rstrip(",").strip()
-            for t in terms
-            if t.strip()
-        }
+        cleaned = {t for t in cleaned if t}
         if not cleaned:
-            raise StructuredError(f"Could not parse the structured response: {raw}")
+            raise StructuredError(
+                f"Could not find <answer> tags or recover a term list in response: {content[-250:]}"
+            )
 
-        return {"reasoning": content, "output": list(sorted(set(cleaned)))}
+        return {"reasoning": content, "output": list(sorted(cleaned))}
+
+    # Leading markdown list markers: "- ", "* ", "• ", "1. ", "2) " ...
+    _BULLET = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s*")
+    # Prose lead-ins / trailers the model wraps around a tag-less list, e.g.
+    # "The current conditions extracted ... are:" / "These conditions are ...".
+    _LEAD_INS = ("the ", "these ", "this ", "here ", "based on", "note:")
+
+    @staticmethod
+    def _strip_thinking(content: str) -> str:
+        """Return the post-reasoning body of a response.
+
+        Prefer everything after the last ``</think>`` (robust even when the
+        captured content is only the tail of a long generation); otherwise drop
+        any complete ``<think>...</think>`` block.
+        """
+        if "</think>" in content:
+            return content.rsplit("</think>", 1)[-1]
+        return re.sub(THINKING_PATTERN, "", content, flags=re.DOTALL)
+
+    @staticmethod
+    def _clean_term(t: str) -> str:
+        """Strip markdown decoration and trailing punctuation from one line."""
+        t = t.replace("**", "").replace("__", "")
+        t = BaseAnalyseAgent._BULLET.sub("", t)
+        return t.strip().strip('"').strip("'").rstrip(".").rstrip(",").strip()
+
+    @staticmethod
+    def _is_term(s: str) -> bool:
+        """Heuristic: keep short term-like lines, drop explanatory prose."""
+        s = s.strip()
+        if not s or len(s) > 80:  # a clinical term is short; prose is long
+            return False
+        if s.endswith(":"):  # lead-in like "...conditions extracted are:"
+            return False
+        return not s.lower().startswith(BaseAnalyseAgent._LEAD_INS)
 
     @staticmethod
     def _normalise_raw(raw: str) -> str:

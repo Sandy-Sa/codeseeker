@@ -1,13 +1,11 @@
 from collections import defaultdict
 from functools import partial
-import re
 import typing as typ
 
 
 from agents.base import HfBaseAgent
 from agents.errors import StructuredError
-
-ANSWER_PATTERN = r"<answer>.*?(\b[0-9]\d{0,3}(?:\s*,\s*[1-9]\d{0,3})*\b).*?<\/answer>"
+from agents.parsing import parse_id_answer
 
 
 class LocateAgent(HfBaseAgent):
@@ -15,16 +13,10 @@ class LocateAgent(HfBaseAgent):
 
     def parser(self, content: str) -> dict[str, typ.Any]:
         """Compress the choices."""
-        content = (
-            content.replace("IDs:", "").replace("ID:", "").replace("ID", "").strip()
-        )
-        answer_match = re.search(ANSWER_PATTERN, content, re.DOTALL)
-        output = (
-            [int(num.strip()) for num in answer_match.group(1).split(",")]
-            if answer_match
-            else []
-        )
+        output = parse_id_answer(content)
         if not output:
+            # None (no answer found) or [] (located nothing) -> retry: locate is
+            # a selection step and an empty result is almost always a parse miss.
             raise StructuredError(
                 f"Could not find any relevant answer in the response: {content[-250:]}"
             )

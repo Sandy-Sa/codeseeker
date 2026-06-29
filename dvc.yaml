@@ -56,6 +56,7 @@ stages:
         - experiments/stages/_config.py
         - experiments/analyse_agent.py
         - src/agents/analyse_agent.py
+        - src/agents/parsing.py
         - src/retrieval
         - data/dvc/${item}/prep
       params:
@@ -87,6 +88,7 @@ stages:
         - experiments/stages/_config.py
         - experiments/locate_agent.py
         - src/agents/locate_agent.py
+        - src/agents/parsing.py
         - src/trie
         - data/dvc/${item}/analyse
       params:
@@ -118,6 +120,7 @@ stages:
         - experiments/stages/_config.py
         - experiments/verify_agent.py
         - src/agents/verify_agent.py
+        - src/agents/parsing.py
         - src/trie
         - data/dvc/${item}/locate
       params:
@@ -149,6 +152,7 @@ stages:
         - experiments/stages/_config.py
         - experiments/assign_agent.py
         - src/agents/assign_agent.py
+        - src/agents/parsing.py
         - src/trie
         - data/dvc/${item}/verify
       params:

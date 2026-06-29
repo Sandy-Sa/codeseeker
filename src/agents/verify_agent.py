@@ -1,15 +1,11 @@
 from collections import defaultdict
 from functools import partial
-import re
 import typing as typ
 
 
 from agents.base import HfBaseAgent
 from agents.errors import StructuredError
-
-ANSWER_PATTERN = (
-    r"<\/?answer>.*?(\b[0-9]\d{0,3}(?:\s*,\s*[1-9]\d{0,3})*\b).*?<\/answer>"
-)
+from agents.parsing import parse_id_answer
 
 
 class VerifyAgent(HfBaseAgent):
@@ -70,19 +66,14 @@ class VerifyAgent(HfBaseAgent):
 
     def parser(self, content: str) -> dict[str, typ.Any]:
         """Compress the choices."""
-        content = content.replace("IDs:", "").replace("ID:", "")
-        answer_match = re.search(ANSWER_PATTERN, content, re.DOTALL)
-        if not answer_match:
+        output = parse_id_answer(content)
+        if output is None:
+            # No answer located at all (truncated/malformed) -> retry. An empty
+            # list (answer block present but no IDs) is a valid "none of these
+            # candidates apply" verdict and is kept.
             raise StructuredError(
                 f"Could not find answer tags in the response: {content[-250:]}"
             )
-
-        output = [int(num.strip()) for num in answer_match.group(1).split(",")]
-        if not output:
-            raise StructuredError(
-                f"Found answer tags but no valid numbers inside: {answer_match.group(1)}"
-            )
-
         return {"reasoning": content, "output": output}
 
 

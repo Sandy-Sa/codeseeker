@@ -76,6 +76,30 @@ def test_recovers_terms_without_answer_tags(content, expected):
     ), f"prose leaked: {out}"
 
 
+def _encode_byte_bpe(s: str) -> str:
+    """Re-encode whitespace as GPT-2 byte-level BPE, as vLLM actually returns it."""
+    return s.replace("\n", "Ċ").replace("\t", "ĉ").replace(" ", "Ġ")
+
+
+@pytest.mark.parametrize("content,expected", CASES)
+def test_recovers_terms_from_undetokenized_byte_bpe(content, expected):
+    """Reproduces the real production failure: content arrives un-detokenized
+    (spaces='Ġ', newlines='Ċ'). The parser must decode it before recovering."""
+    raw = _encode_byte_bpe(content)
+    assert "Ġ" in raw and "Ċ" in raw  # sanity: this is the broken form
+    out = set(_parser().parser(raw)["output"])
+    assert expected <= out, f"missing: {expected - out}"
+
+
+def test_byte_bpe_answer_tags_parse():
+    """A byte-BPE-encoded <answer> block (the path that gave garbage blobs)."""
+    content = _encode_byte_bpe(
+        "<think>reasoning</think>\n<answer>\nNSTEMI\nsevere MR\n</answer>"
+    )
+    out = set(_parser().parser(content)["output"])
+    assert out == {"NSTEMI", "severe MR"}
+
+
 def test_well_formed_answer_tags_still_parse():
     """The original <answer> path must be unchanged (truthful to original)."""
     content = (

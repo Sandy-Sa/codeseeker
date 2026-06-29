@@ -33,6 +33,7 @@ class BaseAnalyseAgent(HfBaseAgent):
 
     def parser(self, content: str) -> dict[str, typ.Any]:
 
+        content = self._decode_byte_bpe(content)
         m = re.search(ANSWER_PATTERN, content, re.DOTALL)
         if m:
             raw: str = self._normalise_raw(m.group(1))
@@ -70,6 +71,20 @@ class BaseAnalyseAgent(HfBaseAgent):
     # Prose lead-ins / trailers the model wraps around a tag-less list, e.g.
     # "The current conditions extracted ... are:" / "These conditions are ...".
     _LEAD_INS = ("the ", "these ", "this ", "here ", "based on", "note:")
+
+    # vLLM (this build/SIF) returns the completion as un-detokenized GPT-2
+    # byte-level BPE token strings: printable ASCII is intact but whitespace
+    # bytes are encoded (space -> 'Ġ' U+0120, newline -> 'Ċ' U+010A,
+    # tab -> 'ĉ', CR -> 'č'). Without decoding, splitlines()/\s find no
+    # whitespace and every parser collapses each response to one blob, which is
+    # the true root cause of the ~1.14 snippets/doc / 0.55% recall (NOT a mere
+    # logger artifact). These codepoints never occur in real clinical English,
+    # so this decode is a safe no-op on already-detokenized output.
+    _BYTE_BPE = str.maketrans({"Ġ": " ", "Ċ": "\n", "ĉ": "\t", "č": "\r"})
+
+    @staticmethod
+    def _decode_byte_bpe(content: str) -> str:
+        return content.translate(BaseAnalyseAgent._BYTE_BPE)
 
     @staticmethod
     def _strip_thinking(content: str) -> str:

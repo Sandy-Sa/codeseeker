@@ -16,7 +16,7 @@ import analyse_agent as step1
 from agents.analyse_agent import create_analyse_agent
 import utils as exp_utils
 from retrieval.qdrant_search import client as qdrant_client
-from stages import _config
+from stages import _config, _metrics
 
 
 def main() -> None:
@@ -24,6 +24,7 @@ def main() -> None:
     parser.add_argument("--input", required=True, help="prep output (load_from_disk)")
     parser.add_argument("--output", required=True, help="save_to_disk target dir")
     parser.add_argument("--metrics-dir", required=True, help="where to dump metrics")
+    parser.add_argument("--dataset", required=True, help="Key in DATASET_CONFIGS")
     parser.add_argument("--params", default=None, help="Path to params.yaml")
     args = parser.parse_args()
 
@@ -72,6 +73,14 @@ def main() -> None:
         trie=eval_trie,
         dump_path=metrics_dir,
         file_prefix="analyze",
+    )
+    staging = cfg.staging.get(args.dataset)
+    _metrics.dump_split_metrics(
+        eval_data=eval_data,
+        trie=eval_trie,
+        dump_path=metrics_dir,
+        file_prefix="analyze",
+        splits_file=staging.splits_file if staging else None,
     )
 
 

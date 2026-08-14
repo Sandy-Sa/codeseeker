@@ -50,10 +50,11 @@ stages:
   analyse:
     foreach: ${datasets}
     do:
-      cmd: PYTHONPATH=src:experiments python experiments/stages/analyse.py --input data/dvc/${item}/prep --output data/dvc/${item}/analyse --metrics-dir data/dvc/${item}/metrics/analyse
+      cmd: PYTHONPATH=src:experiments python experiments/stages/analyse.py --dataset ${item} --input data/dvc/${item}/prep --output data/dvc/${item}/analyse --metrics-dir data/dvc/${item}/metrics/analyse
       deps:
         - experiments/stages/analyse.py
         - experiments/stages/_config.py
+        - experiments/stages/_metrics.py
         - experiments/analyse_agent.py
         - src/agents/analyse_agent.py
         - src/agents/parsing.py
@@ -73,6 +74,7 @@ stages:
         - qdrant.local_path
         - agents.analyse
         - icd.year
+        - staging.${item}.splits_file
       outs:
         - data/dvc/${item}/analyse
         - data/dvc/${item}/metrics/analyse
@@ -81,11 +83,12 @@ stages:
   locate:
     foreach: ${datasets}
     do:
-      cmd: PYTHONPATH=src:experiments python experiments/stages/locate.py --input data/dvc/${item}/analyse --output data/dvc/${item}/locate --metrics-dir data/dvc/${item}/metrics/locate
+      cmd: PYTHONPATH=src:experiments python experiments/stages/locate.py --dataset ${item} --input data/dvc/${item}/analyse --output data/dvc/${item}/locate --metrics-dir data/dvc/${item}/metrics/locate
       deps:
         - experiments/stages/locate.py
         - experiments/stages/_llm_stage.py
         - experiments/stages/_config.py
+        - experiments/stages/_metrics.py
         - experiments/locate_agent.py
         - src/agents/locate_agent.py
         - src/agents/parsing.py
@@ -105,6 +108,7 @@ stages:
         - icd.year
         # eval trie code space (build_eval_trie) -- not retrieval, but scores metrics
         - retrieval.all_codes
+        - staging.${item}.splits_file
       outs:
         - data/dvc/${item}/locate
         - data/dvc/${item}/metrics/locate
@@ -113,11 +117,12 @@ stages:
   verify:
     foreach: ${datasets}
     do:
-      cmd: PYTHONPATH=src:experiments python experiments/stages/verify.py --input data/dvc/${item}/locate --output data/dvc/${item}/verify --metrics-dir data/dvc/${item}/metrics/verify
+      cmd: PYTHONPATH=src:experiments python experiments/stages/verify.py --dataset ${item} --input data/dvc/${item}/locate --output data/dvc/${item}/verify --metrics-dir data/dvc/${item}/metrics/verify
       deps:
         - experiments/stages/verify.py
         - experiments/stages/_llm_stage.py
         - experiments/stages/_config.py
+        - experiments/stages/_metrics.py
         - experiments/verify_agent.py
         - src/agents/verify_agent.py
         - src/agents/parsing.py
@@ -137,6 +142,7 @@ stages:
         - icd.year
         # eval trie code space (build_eval_trie) -- not retrieval, but scores metrics
         - retrieval.all_codes
+        - staging.${item}.splits_file
       outs:
         - data/dvc/${item}/verify
         - data/dvc/${item}/metrics/verify
@@ -145,11 +151,12 @@ stages:
   assign:
     foreach: ${datasets}
     do:
-      cmd: PYTHONPATH=src:experiments python experiments/stages/assign.py --input data/dvc/${item}/verify --output data/dvc/${item}/assign --metrics-dir data/dvc/${item}/metrics/assign
+      cmd: PYTHONPATH=src:experiments python experiments/stages/assign.py --dataset ${item} --input data/dvc/${item}/verify --output data/dvc/${item}/assign --metrics-dir data/dvc/${item}/metrics/assign
       deps:
         - experiments/stages/assign.py
         - experiments/stages/_llm_stage.py
         - experiments/stages/_config.py
+        - experiments/stages/_metrics.py
         - experiments/assign_agent.py
         - src/agents/assign_agent.py
         - src/agents/parsing.py
@@ -169,6 +176,7 @@ stages:
         - icd.year
         # eval trie code space (build_eval_trie) -- not retrieval, but scores metrics
         - retrieval.all_codes
+        - staging.${item}.splits_file
       outs:
         - data/dvc/${item}/assign
         - data/dvc/${item}/metrics/assign

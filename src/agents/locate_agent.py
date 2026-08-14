@@ -14,9 +14,13 @@ class LocateAgent(HfBaseAgent):
     def parser(self, content: str) -> dict[str, typ.Any]:
         """Compress the choices."""
         output = parse_id_answer(content)
-        if not output:
-            # None (no answer found) or [] (located nothing) -> retry: locate is
-            # a selection step and an empty result is almost always a parse miss.
+        # Only a truly missing answer (None => truncated/malformed) is retried.
+        # [] means the model answered "ID 0" / "None" -- the sentinel the locate
+        # template explicitly asks for when no term applies -- which is a valid
+        # negative, not a parse miss. Retrying it burned 10 escalating attempts
+        # per candidate group and left the agent unable to express a negative
+        # at all. Matches VerifyAgent/AssignAgent and parse_id_answer's contract.
+        if output is None:
             raise StructuredError(
                 f"Could not find any relevant answer in the response: {content[-250:]}"
             )

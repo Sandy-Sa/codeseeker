@@ -27,7 +27,10 @@ class ModelConfig(pydantic.BaseModel):
     api_base: str = "http://localhost:8000/v1"
     deployment: str = "deepseek-ai/DeepSeek-R1-Distill-Llama-70B"
     revision: str | None = None  # pinned HF revision SHA (hashed, never downloaded)
-    endpoint: typ.Literal["chat/completions", "completions"] = "completions"
+    # See params.yaml: `chat/completions` is required for chat-template models
+    # (DeepSeek-R1-Distill, Qwen3, ...); `completions` sends the raw joined
+    # template with no role/BOS tokens.
+    endpoint: typ.Literal["chat/completions", "completions"] = "chat/completions"
     use_cache: bool = True
     # httpx read/write/pool timeout (seconds) for each LLM request. None disables
     # it so a long reasoning generation (bounded by sampling.max_tokens) cannot
@@ -133,11 +136,13 @@ class PipelineConfig(pydantic.BaseModel):
         }
 
     def sampling_params(self) -> dict[str, typ.Any]:
-        # NOTE: the OpenAI-compatible ``/v1/completions`` endpoint (model.endpoint
-        # == "completions") honours ``max_tokens`` -- it silently ignores
-        # ``max_completion_tokens`` (a chat/completions-only field) and falls back
-        # to a small default, truncating the reasoning before the <answer> block.
-        # Use ``max_tokens`` so the agent's structured output is actually emitted.
+        # NOTE: always ``max_tokens``, never ``max_completion_tokens``. This
+        # throughster build's ``VllmRequest`` declares only ``max_tokens`` and
+        # uses the same request model for both endpoints, so
+        # ``max_completion_tokens`` is dropped as an extra field and vLLM falls
+        # back to a small default -- truncating the reasoning before the
+        # <answer> block. ``max_tokens`` is forwarded and honoured on both
+        # ``completions`` and ``chat/completions``.
         params = {
             "temperature": self.sampling.temperature,
             "max_tokens": self.sampling.max_tokens,

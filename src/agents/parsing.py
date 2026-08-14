@@ -40,6 +40,16 @@ _ANSWER_MARKER = re.compile(r"answer\s*\**\s*:", re.IGNORECASE)
 # "2, 1", and a sentence-final "... ID 2.") are captured. The (?!\.\d) guard
 # rejects only true decimals (dot followed by a digit), not a trailing period.
 _STANDALONE_INT = re.compile(r"(?<![\w.])\d{1,4}(?![\w])(?!\.\d)")
+# An "ID" label glued to its number ("ID0", "ID1, ID7", "IDs: 3", "ID: 5").
+# _STANDALONE_INT's (?<![\w.]) lookbehind rejects the digit in "ID0" because
+# "D" is a word char, so the label must be stripped first or the model's most
+# common answer format parses as *no* IDs at all. The \b keeps real words that
+# merely contain "id" + digits intact ("midazolam", "COVID19").
+_ID_LABEL = re.compile(r"\bIDs?\s*[:#]?\s*(?=\d)", re.IGNORECASE)
+# Every agent template numbers its candidates with jinja's 1-based `loop.index`
+# and instructs "If no <terms|codes> are relevant, output ID 0", so 0 is a
+# sentinel meaning "nothing applies" and never a selectable candidate.
+_NONE_SENTINEL = 0
 
 
 def decode_byte_bpe(content: str) -> str:
@@ -55,8 +65,15 @@ def strip_thinking(content: str) -> str:
 
 
 def extract_int_ids(text: str) -> list[int]:
-    """Sorted, de-duplicated standalone integers (candidate IDs) in ``text``."""
-    return sorted({int(m) for m in _STANDALONE_INT.findall(text)})
+    """Sorted, de-duplicated standalone integers (candidate IDs) in ``text``.
+
+    The ``ID 0`` sentinel is dropped: candidates are 1-indexed, so 0 carries no
+    selection. "ID0" alone therefore yields ``[]`` -- a valid "nothing applies"
+    prediction, not a parse failure.
+    """
+    ids = {int(m) for m in _STANDALONE_INT.findall(_ID_LABEL.sub("", text))}
+    ids.discard(_NONE_SENTINEL)
+    return sorted(ids)
 
 
 def parse_id_answer(content: str) -> list[int] | None:
@@ -68,11 +85,18 @@ def parse_id_answer(content: str) -> list[int] | None:
     (truncated/malformed), so the caller can raise and let throughster retry.
     """
     content = decode_byte_bpe(content)
-    content = content.replace("IDs:", "").replace("ID:", "")
 
-    m = ANSWER_BLOCK.search(content)
-    if m:
-        return extract_int_ids(m.group(1))
+    # Reasoning models often draft an <answer> block mid-<think> and then emit
+    # the real one at the end, so scan blocks last-first and take the first that
+    # actually carries IDs. An answer block that exists but yields none is a
+    # deliberate "nothing applies" ([]), not a miss.
+    blocks = ANSWER_BLOCK.findall(content)
+    if blocks:
+        for block in reversed(blocks):
+            ids = extract_int_ids(block)
+            if ids:
+                return ids
+        return []
 
     # No tags: recover an explicit "Answer: ..." line after the reasoning.
     body = strip_thinking(content)

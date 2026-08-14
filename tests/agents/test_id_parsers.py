@@ -44,6 +44,24 @@ ID_CASES = [
     ("...analysis.Ċ</think>ĊĊTheĠcodeĠisĠE11.9.ĊĊ<answer>Ċ3Ċ</answer>", [3]),
     # truncated / no answer at all -> None -> caller raises
     ("...stillĠreasoningĠwithoutĠanyĠconclusionĠyet", None),
+    # --- "ID" glued to its number (.pbs/2026-08-14-10-22-68d95d59/run.e) -----
+    # The dominant answer format in job 176217145. _STANDALONE_INT's (?<![\w.])
+    # lookbehind rejected the digit after "D", so all of these parsed as no IDs
+    # and burned retries.
+    ("...noneĠapply.ĊĊ<answer>ĊID0Ċ</answer>", []),
+    ("...esophagitis.ĊĊ<answer>ID1,ĠID7</answer>", [1, 7]),
+    ("...</think>ĊĊ<answer>ID0</answer>", []),
+    ("...diabetes.ĊĊ**Answer:**ĠID1,ĠID5", [1, 5]),
+    ("...hematuria.ĊĊ**Answer:**ĠID4", [4]),
+    ("...PICCĠinfection.ĊĊ<answer>5,6</answer>", [5, 6]),
+    # "ID 0" is the template's "nothing applies" sentinel (candidates are
+    # 1-indexed via jinja loop.index), so it must never become candidate 0.
+    ("...noĠtermsĠapply.Ċ</think>ĊĊ<answer>ĠID0Ġ</answer>", []),
+    ("...mixed.ĊĊ<answer>ID0,ĠID3</answer>", [3]),
+    # a draft <answer> inside the reasoning must not shadow the final one
+    ("<think>ĊmaybeĠ<answer>9</answer>Ċ</think>ĊĊ<answer>2</answer>", [2]),
+    # words containing "id"+digits must survive the label strip
+    ("...onĠmidazolam,ĠCOVID19Ġnegative.ĊĊ<answer>2</answer>", [2]),
 ]
 
 
@@ -84,7 +102,20 @@ def test_locate_recovers_tagless_answer_line():
     assert out == [6, 8]
 
 
-def test_locate_empty_raises():
-    # locate is a selection step; nothing located == parse miss -> retry
+def test_locate_empty_answer_block_is_valid_none():
+    # "ID 0" / "None" is the sentinel the locate template asks for when no term
+    # applies -- a valid negative, NOT a parse miss. Retrying it made the agent
+    # unable to express a negative at all (job 176217145).
+    assert _p(LocateAgent).parser("x.Ċ</think>ĊĊ<answer>None</answer>")["output"] == []
+    assert _p(LocateAgent).parser("x.Ċ</think>ĊĊ<answer>ID0</answer>")["output"] == []
+
+
+def test_locate_truncated_raises():
+    # no answer at all (truncated/malformed) is still a parse miss -> retry
     with pytest.raises(StructuredError):
-        _p(LocateAgent).parser("x.Ċ</think>ĊĊ<answer>None</answer>")
+        _p(LocateAgent).parser("stillĠthinking,ĠnoĠanswer")
+
+
+def test_locate_recovers_glued_id_labels():
+    out = _p(LocateAgent).parser("x.Ċ</think>ĊĊ<answer>ID1,ĠID7</answer>")["output"]
+    assert out == [1, 7]

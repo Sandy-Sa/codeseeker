@@ -3,6 +3,7 @@ from collections import defaultdict
 import json
 from pathlib import Path
 import re
+import time
 import typing as typ
 
 
@@ -150,7 +151,7 @@ class HfBaseAgent(HfOperation):
             )
 
         try:
-            responses = self.batch_call(batch_rows)
+            responses = self._batch_call_with_retries(batch_rows)
         except Exception as exc:
             # batch_call may *raise* (not just return) a client error such as
             # httpx.HTTPStatusError, which cannot be reconstructed by dill when
@@ -188,6 +189,40 @@ class HfBaseAgent(HfOperation):
             **batch,
             **output,
         }
+
+    # A transient fault must not cost the whole stage. throughster turns only
+    # StructuredResponseError into a per-request result (the `except*` in its
+    # _batch_decorator); anything else -- a bare TimeoutError from the aiocache
+    # file-cache wrapper, a dropped connection, a 5xx from vLLM -- escapes the
+    # anyio task group, kills this datasets.map(num_proc>1) worker and takes
+    # every already-completed row of the stage with it. That is what ended job
+    # 176217145 at row 518/550 of `locate`, ~58 minutes in.
+    #
+    # Retrying the whole batch is cheap because throughster caches successful
+    # responses: the sub-requests that already succeeded replay from the file
+    # cache at their original temperature (same cache key), so only the failed
+    # one goes back to the GPU.
+    _BATCH_RETRIES = 3
+    _BATCH_RETRY_BACKOFF_S = 5.0
+
+    def _batch_call_with_retries(
+        self, requests: list[dict[str, typ.Any]]
+    ) -> list[BaseResponse]:
+        """`batch_call` with bounded retries on transient failures."""
+        for attempt in range(self._BATCH_RETRIES):
+            try:
+                return self.batch_call(requests)
+            except Exception as exc:
+                if attempt == self._BATCH_RETRIES - 1:
+                    raise
+                delay = self._BATCH_RETRY_BACKOFF_S * 2**attempt
+                logger.warning(
+                    f"LLM batch_call failed "
+                    f"(attempt {attempt + 1}/{self._BATCH_RETRIES}): "
+                    f"{_flatten_exc(exc)}. Retrying in {delay:.0f}s."
+                )
+                time.sleep(delay)
+        raise AssertionError("unreachable")  # pragma: no cover
 
     def batch_call(self, requests: list[dict[str, typ.Any]]) -> list[BaseResponse]:
         """Async wrapper for the translation operation."""

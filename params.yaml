@@ -41,7 +41,15 @@ model:
   api_base: http://localhost:8000/v1
   deployment: deepseek-ai/DeepSeek-R1-Distill-Llama-70B
   revision: b1c0b44b4369b597ad119a196caf79a9c40e141e   # DeepSeek-R1-Distill-Llama-70B HF SHA (provenance; never downloaded)
-  endpoint: completions
+  # `chat/completions`, NOT the upstream `completions`. On /v1/completions the
+  # model receives a bare concatenation of the system+user text -- no
+  # <|begin_of_sentence|>, no <|User|>/<|Assistant|> role tokens -- because
+  # prompt_poet's `.string` just joins the template parts. DeepSeek-R1-Distill
+  # is conditioned on exactly those special tokens, and its model card requires
+  # the chat template. /v1/chat/completions makes vLLM apply the model's own
+  # template from tokenizer_config (base.py strips our hand-rolled trailing
+  # `<think>` on this path, since the chat template appends its own).
+  endpoint: chat/completions
   use_cache: true
 
 sampling:

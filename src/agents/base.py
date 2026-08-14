@@ -113,12 +113,24 @@ class HfBaseAgent(HfOperation):
             **self.sampling_params,
         }
 
-    @staticmethod
+    # Every agent template ends its user turn with a literal `<think>` so that
+    # the raw `completions` path primes DeepSeek-R1's reasoning by hand. On
+    # `chat/completions` vLLM applies the model's own chat template, which
+    # already appends `<|Assistant|><think>\n`; leaving ours in would emit a
+    # stray `<think>` *inside* the user turn, before the assistant header.
+    _TRAILING_THINK = re.compile(r"\s*<think>\s*\Z")
+
+    @classmethod
     def prompt_messages_or_string(
-        client: ModelInterface, prompt: Prompt
+        cls, client: ModelInterface, prompt: Prompt
     ) -> str | list[dict[str, str]]:
         if client.endpoint == "chat/completions":
-            return prompt.messages
+            messages = [dict(m) for m in prompt.messages]
+            if messages:
+                messages[-1]["content"] = cls._TRAILING_THINK.sub(
+                    "", messages[-1]["content"]
+                )
+            return messages
         return prompt.string
 
     def __call__(

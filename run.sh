@@ -140,9 +140,9 @@ echo "[pipeline] vLLM ready"
 # Outputs are written into the shared scratch DVC cache (.dvc/config), so they
 # survive even though $WORKDIR is on jobfs.
 if [[ -n "$DVC_TARGET" ]]; then
-  dvc repro "$DVC_TARGET"
+  dvc repro -f "$DVC_TARGET"
 else
-  dvc repro
+  dvc repro -f
 fi
 
 echo "[run] done"

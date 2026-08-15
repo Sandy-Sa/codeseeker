@@ -1,4 +1,5 @@
 from collections import OrderedDict, defaultdict
+import contextlib
 from functools import partial
 import hashlib
 import json
@@ -153,6 +154,44 @@ def analyse_agent_metrics(
     return metrics_results
 
 
+def _drop_empty_cache_entries(cache) -> None:
+    """Make a 0-byte response-cache file behave as a miss instead of exploding.
+
+    `aiofilecache.FileCache._set` opens with `O_CREAT|O_EXCL` and only *then*
+    awaits the write, so a job killed in that window leaves a 0-byte file. Two
+    things follow, and both are permanent:
+
+    * `_set` can never repair it -- `O_EXCL` makes every later write for that key
+      raise FileExistsError, which `_set` swallows with `except (IOError, OSError)`.
+    * `_get` cannot suppress it either. Its `except (IOError, OSError, EOFError)`
+      only covers *open/read*; an existing empty file reads fine and returns b"",
+      which `aiocache.BaseCache.get` then feeds unconditionally to the serializer.
+      `pickle.loads(b"")` raises `EOFError: Ran out of input` from *outside* that
+      try block, escaping throughster's anyio task group and killing the stage.
+
+    So the entry is poisoned forever: unreadable, unrepairable, and fatal on every
+    retry (identical failure on all `_BATCH_RETRIES` attempts). That is what ended
+    job 176308210 at row 518/550 of `locate`, on debris left by job 176217145.
+
+    Unlinking the file restores both paths: this returns None (a clean miss) and,
+    with the file gone, the next `_set` gets past `O_EXCL` and repopulates it.
+    """
+    original_get = cache._get
+
+    async def _get(key, encoding="utf-8", _conn=None):
+        data = await original_get(key, encoding=encoding, _conn=_conn)
+        if data == b"":
+            # `key` is already the absolute filename -- FileCache._build_key
+            # returns basedir/namespace/<md5[:2]>/<md5[2:]>, not a bare key.
+            with contextlib.suppress(OSError):
+                os.unlink(key)
+            logger.warning(f"Discarded empty (corrupt) response-cache entry: {key}")
+            return None
+        return data
+
+    cache._get = _get
+
+
 def _create_interface_untimed_cache(**kwargs) -> ModelInterface:
     """`create_interface`, with the response cache's operation timeout removed.
 
@@ -178,6 +217,7 @@ def _create_interface_untimed_cache(**kwargs) -> ModelInterface:
     client = create_interface(**kwargs)
     if getattr(client, "cache", None) is not None:
         client.cache.timeout = 0
+        _drop_empty_cache_entries(client.cache)
     return client
 
 

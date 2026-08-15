@@ -99,6 +99,16 @@ export THROUGHSTER_CACHE_DIR="${THROUGHSTER_CACHE_DIR:-$SCRATCH_BASE/cache/throu
 export QDRANT_LOCAL_PATH="${QDRANT_LOCAL_PATH:-$PBS_JOBFS/.qdrant_local}"
 mkdir -p "$TRIE_CACHE_DIR" "$DUMP_FOLDER" "$THROUGHSTER_CACHE_DIR"
 
+# Drop 0-byte response-cache entries left by a previous job that died mid-write.
+# aiofilecache creates the file (O_CREAT|O_EXCL) *before* writing the pickle, so
+# a kill in that window leaves an empty file -- and O_EXCL then makes every later
+# write for that key fail silently, so the entry can never repair itself. Reading
+# it raises `EOFError: Ran out of input` (pickle.loads(b"")) on every attempt,
+# which killed job 176308210 at row 518/550 of `locate`. Deleting is the only
+# recovery; the row simply regenerates. See also _drop_empty_cache_entries in
+# experiments/utils.py, which handles files corrupted *during* this run.
+find "$THROUGHSTER_CACHE_DIR" -type f -empty -delete
+
 echo "[pipeline] model:       $MODEL  (port $PORT, tp=$TP, mem_util=$GPU_MEM_UTIL)"
 echo "[pipeline] dvc target:  ${DVC_TARGET:-<full DAG>}"
 echo "[pipeline] qdrant path: $QDRANT_LOCAL_PATH"

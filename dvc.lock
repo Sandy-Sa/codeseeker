@@ -1,0 +1,368 @@
+schema: '2.0'
+stages:
+  stage_data@mdace-icd10cm:
+    cmd: PYTHONPATH=src:experiments python experiments/stages/stage_data.py 
+      --dataset mdace-icd10cm
+    deps:
+    - path: experiments/stages/_config.py
+      hash: md5
+      md5: e5dfd4dd36e04f806ae058107d95fd45
+      size: 6743
+    - path: experiments/stages/stage_data.py
+      hash: md5
+      md5: dc76f900f1d08b54ba173b530cf8ea10
+      size: 2005
+    params:
+      params.yaml:
+        staging.mdace-icd10cm.copies:
+        - src: mdace_inpatient_annotations.parquet
+          dest: data/mdace/processed/mdace_inpatient_annotations.parquet
+        - src: mdace_notes.parquet
+          dest: data/mdace/processed/mdace_notes.parquet
+    outs:
+    - path: data/mdace/processed
+      hash: md5
+      md5: 8b233315f6f5a308e4676bc57d657f2c.dir
+      size: 3301231
+      nfiles: 2
+  prep@mdace-icd10cm:
+    cmd: PYTHONPATH=src:experiments python experiments/stages/prep.py --dataset 
+      mdace-icd10cm --output data/dvc/mdace-icd10cm/prep
+    deps:
+    - path: data/mdace/processed
+      hash: md5
+      md5: 8b233315f6f5a308e4676bc57d657f2c.dir
+      size: 3301231
+      nfiles: 2
+    - path: data/splits/mdace_icd10_split.feather
+      hash: md5
+      md5: 7c8e1a9876e488da70fb4d604adca4af
+      size: 7854
+    - path: experiments/stages/_config.py
+      hash: md5
+      md5: e5dfd4dd36e04f806ae058107d95fd45
+      size: 6743
+    - path: experiments/stages/prep.py
+      hash: md5
+      md5: 4808ad839778ad35657fb160a0b108d7
+      size: 1946
+    - path: src/dataloader
+      hash: md5
+      md5: 30037f4a89533945c5f8c6d4a6c06db2.dir
+      size: 305081
+      nfiles: 77
+    - path: src/trie
+      hash: md5
+      md5: 8ceabbe745ac3cf2c0e539adf0869f04.dir
+      size: 146390
+      nfiles: 15
+    params:
+      params.yaml:
+        icd.year: 2022
+        staging.mdace-icd10cm.skip_indices:
+        - 27
+        - 179
+        - 260
+        - 327
+        - 379
+        - 394
+    outs:
+    - path: data/dvc/mdace-icd10cm/prep
+      hash: md5
+      md5: af83791afbba0629501cb831a5507ec7.dir
+      size: 5364090
+      nfiles: 3
+  analyse@mdace-icd10cm:
+    cmd: PYTHONPATH=src:experiments python experiments/stages/analyse.py 
+      --dataset mdace-icd10cm --input data/dvc/mdace-icd10cm/prep --output 
+      data/dvc/mdace-icd10cm/analyse --metrics-dir 
+      data/dvc/mdace-icd10cm/metrics/analyse
+    deps:
+    - path: data/dvc/mdace-icd10cm/prep
+      hash: md5
+      md5: af83791afbba0629501cb831a5507ec7.dir
+      size: 5364090
+      nfiles: 3
+    - path: experiments/analyse_agent.py
+      hash: md5
+      md5: dbf17cd2e82ae9487f6afd2038a88f49
+      size: 9648
+    - path: experiments/stages/_config.py
+      hash: md5
+      md5: e5dfd4dd36e04f806ae058107d95fd45
+      size: 6743
+    - path: experiments/stages/_metrics.py
+      hash: md5
+      md5: d74347534929a156ea942493fa628749
+      size: 4273
+    - path: experiments/stages/analyse.py
+      hash: md5
+      md5: 7d414ee954513f60f8d12ebc8a26c8de
+      size: 2792
+    - path: src/agents/analyse_agent.py
+      hash: md5
+      md5: 83e4b99c09ca0b8ff0d3e04c67801e5b
+      size: 10109
+    - path: src/agents/parsing.py
+      hash: md5
+      md5: f6eaeb35b2cc5e8eaba6dfd116920caa
+      size: 4996
+    - path: src/retrieval
+      hash: md5
+      md5: c95b59cd9bfb8a3deb457c6efd15260f.dir
+      size: 96523
+      nfiles: 13
+    params:
+      params.yaml:
+        agents.analyse:
+          agent_type: base
+          prompt_name: analyse_agent/strict_v3
+        icd.year: 2022
+        model.deployment: deepseek-ai/DeepSeek-R1-Distill-Llama-70B
+        model.endpoint: chat/completions
+        model.provider: vllm
+        model.revision: b1c0b44b4369b597ad119a196caf79a9c40e141e
+        model.use_cache: true
+        qdrant.local_path: ./.qdrant_local
+        retrieval:
+          embed_model: pritamdeka/S-PubMedBert-MS-MARCO
+          embed_revision: 96786c7024f95c5aac7f2b9a18086c7b97b23036
+          embed_query_key: output
+          distance: Cosine
+          topk: 10
+          hnsw:
+            m: 32
+            ef_construct: 256
+          all_codes: true
+        sampling:
+          temperature: 0.6
+          max_tokens: 50000
+          seed: 1
+        staging.mdace-icd10cm.splits_file: data/splits/mdace_icd10_split.feather
+    outs:
+    - path: data/dvc/mdace-icd10cm/analyse
+      hash: md5
+      md5: 2d1ab07094f25f64b32466305cadb446.dir
+      size: 16326813
+      nfiles: 3
+    - path: data/dvc/mdace-icd10cm/metrics/analyse
+      hash: md5
+      md5: 21f1dcdc9fd818194e21a971e12c056c.dir
+      size: 528806
+      nfiles: 3
+  locate@mdace-icd10cm:
+    cmd: PYTHONPATH=src:experiments python experiments/stages/locate.py 
+      --dataset mdace-icd10cm --input data/dvc/mdace-icd10cm/analyse --output 
+      data/dvc/mdace-icd10cm/locate --metrics-dir 
+      data/dvc/mdace-icd10cm/metrics/locate
+    deps:
+    - path: data/dvc/mdace-icd10cm/analyse
+      hash: md5
+      md5: 2d1ab07094f25f64b32466305cadb446.dir
+      size: 16326813
+      nfiles: 3
+    - path: experiments/locate_agent.py
+      hash: md5
+      md5: 7dd2b1061dc089c9903913278f8c2264
+      size: 12898
+    - path: experiments/stages/_config.py
+      hash: md5
+      md5: e5dfd4dd36e04f806ae058107d95fd45
+      size: 6743
+    - path: experiments/stages/_llm_stage.py
+      hash: md5
+      md5: 33bf55847460f184dbbfd2477fb85b88
+      size: 4155
+    - path: experiments/stages/_metrics.py
+      hash: md5
+      md5: d74347534929a156ea942493fa628749
+      size: 4273
+    - path: experiments/stages/locate.py
+      hash: md5
+      md5: 2aca7a7e338d43e28f74567da0b0c442
+      size: 659
+    - path: src/agents/locate_agent.py
+      hash: md5
+      md5: b9428e2c0594c608991b3900733e9ad2
+      size: 5480
+    - path: src/agents/parsing.py
+      hash: md5
+      md5: f6eaeb35b2cc5e8eaba6dfd116920caa
+      size: 4996
+    - path: src/trie
+      hash: md5
+      md5: 49cf234f4c087a9c1ed722025a457a41.dir
+      size: 135330
+      nfiles: 14
+    params:
+      params.yaml:
+        agents.locate:
+          agent_type: split
+          prompt_name: locate_agent/locate_few_terms_v1
+        icd.year: 2022
+        model.deployment: deepseek-ai/DeepSeek-R1-Distill-Llama-70B
+        model.endpoint: chat/completions
+        model.provider: vllm
+        model.revision: b1c0b44b4369b597ad119a196caf79a9c40e141e
+        model.use_cache: true
+        retrieval.all_codes: true
+        sampling:
+          temperature: 0.6
+          max_tokens: 50000
+          seed: 1
+        staging.mdace-icd10cm.splits_file: data/splits/mdace_icd10_split.feather
+    outs:
+    - path: data/dvc/mdace-icd10cm/locate
+      hash: md5
+      md5: a96ff9050bd6d914dc2c861b25b56704.dir
+      size: 7617693
+      nfiles: 3
+    - path: data/dvc/mdace-icd10cm/metrics/locate
+      hash: md5
+      md5: 5e7a0358d12a6e6471a8f05fa63d5183.dir
+      size: 152485
+      nfiles: 3
+  verify@mdace-icd10cm:
+    cmd: PYTHONPATH=src:experiments python experiments/stages/verify.py 
+      --dataset mdace-icd10cm --input data/dvc/mdace-icd10cm/locate --output 
+      data/dvc/mdace-icd10cm/verify --metrics-dir 
+      data/dvc/mdace-icd10cm/metrics/verify
+    deps:
+    - path: data/dvc/mdace-icd10cm/locate
+      hash: md5
+      md5: a96ff9050bd6d914dc2c861b25b56704.dir
+      size: 7617693
+      nfiles: 3
+    - path: experiments/stages/_config.py
+      hash: md5
+      md5: e5dfd4dd36e04f806ae058107d95fd45
+      size: 6743
+    - path: experiments/stages/_llm_stage.py
+      hash: md5
+      md5: 33bf55847460f184dbbfd2477fb85b88
+      size: 4155
+    - path: experiments/stages/_metrics.py
+      hash: md5
+      md5: d74347534929a156ea942493fa628749
+      size: 4273
+    - path: experiments/stages/verify.py
+      hash: md5
+      md5: bbf3cdf5b98ec1f9c80a4ca979551aa8
+      size: 658
+    - path: experiments/verify_agent.py
+      hash: md5
+      md5: 495a447622f45ddc9a1bd8cfca473277
+      size: 12313
+    - path: src/agents/parsing.py
+      hash: md5
+      md5: f6eaeb35b2cc5e8eaba6dfd116920caa
+      size: 4996
+    - path: src/agents/verify_agent.py
+      hash: md5
+      md5: eb7ee17e0fa55fb026223a7942ebb8ad
+      size: 3585
+    - path: src/trie
+      hash: md5
+      md5: 49cf234f4c087a9c1ed722025a457a41.dir
+      size: 135330
+      nfiles: 14
+    params:
+      params.yaml:
+        agents.verify:
+          agent_type: reasoning
+          prompt_name: verify_agent/few_per_term_v2
+        icd.year: 2022
+        model.deployment: deepseek-ai/DeepSeek-R1-Distill-Llama-70B
+        model.endpoint: chat/completions
+        model.provider: vllm
+        model.revision: b1c0b44b4369b597ad119a196caf79a9c40e141e
+        model.use_cache: true
+        retrieval.all_codes: true
+        sampling:
+          temperature: 0.6
+          max_tokens: 50000
+          seed: 1
+        staging.mdace-icd10cm.splits_file: data/splits/mdace_icd10_split.feather
+    outs:
+    - path: data/dvc/mdace-icd10cm/metrics/verify
+      hash: md5
+      md5: ab14a327777fada91fbff2182a4bbc53.dir
+      size: 124986
+      nfiles: 3
+    - path: data/dvc/mdace-icd10cm/verify
+      hash: md5
+      md5: 35e2fb9511f746824019ffcec9891393.dir
+      size: 87878987
+      nfiles: 3
+  assign@mdace-icd10cm:
+    cmd: PYTHONPATH=src:experiments python experiments/stages/assign.py 
+      --dataset mdace-icd10cm --input data/dvc/mdace-icd10cm/verify --output 
+      data/dvc/mdace-icd10cm/assign --metrics-dir 
+      data/dvc/mdace-icd10cm/metrics/assign
+    deps:
+    - path: data/dvc/mdace-icd10cm/verify
+      hash: md5
+      md5: 35e2fb9511f746824019ffcec9891393.dir
+      size: 87878987
+      nfiles: 3
+    - path: experiments/assign_agent.py
+      hash: md5
+      md5: e4c026e2976800c1614a254b53ab9bbb
+      size: 10448
+    - path: experiments/stages/_config.py
+      hash: md5
+      md5: e5dfd4dd36e04f806ae058107d95fd45
+      size: 6743
+    - path: experiments/stages/_llm_stage.py
+      hash: md5
+      md5: 33bf55847460f184dbbfd2477fb85b88
+      size: 4155
+    - path: experiments/stages/_metrics.py
+      hash: md5
+      md5: d74347534929a156ea942493fa628749
+      size: 4273
+    - path: experiments/stages/assign.py
+      hash: md5
+      md5: 3df284dde7ecdb3e415ab9eb5a3c7fc8
+      size: 892
+    - path: src/agents/assign_agent.py
+      hash: md5
+      md5: 257d85cea75e29a967bb4fce2d2a0b20
+      size: 2305
+    - path: src/agents/parsing.py
+      hash: md5
+      md5: f6eaeb35b2cc5e8eaba6dfd116920caa
+      size: 4996
+    - path: src/trie
+      hash: md5
+      md5: 49cf234f4c087a9c1ed722025a457a41.dir
+      size: 135330
+      nfiles: 14
+    params:
+      params.yaml:
+        agents.assign:
+          agent_type: reasoning
+          prompt_name: assign_agent/reasoning_v6
+        icd.year: 2022
+        model.deployment: deepseek-ai/DeepSeek-R1-Distill-Llama-70B
+        model.endpoint: chat/completions
+        model.provider: vllm
+        model.revision: b1c0b44b4369b597ad119a196caf79a9c40e141e
+        model.use_cache: true
+        retrieval.all_codes: true
+        sampling:
+          temperature: 0.6
+          max_tokens: 50000
+          seed: 1
+        staging.mdace-icd10cm.splits_file: data/splits/mdace_icd10_split.feather
+    outs:
+    - path: data/dvc/mdace-icd10cm/assign
+      hash: md5
+      md5: e67d9978f461665cd91873cdc02bdb6b.dir
+      size: 46075915
+      nfiles: 3
+    - path: data/dvc/mdace-icd10cm/metrics/assign
+      hash: md5
+      md5: df1946c77ade51abad8d2c8cc98fa79e.dir
+      size: 118514
+      nfiles: 3
